@@ -122,19 +122,22 @@ const Index = () => {
                 icon: <Zap className="w-6 h-6" />,
                 title: "Zero Drift",
                 description: "Server-controlled playback ensures everyone sees the same frame at the same time.",
-                color: "bg-pink-100",
+                bgColor: "bg-pink-100 dark:bg-pink-500/20",
+                iconColor: "text-pink-600 dark:text-pink-400",
               },
               {
                 icon: <Users className="w-6 h-6" />,
                 title: "Instant Sync",
                 description: "Late joiners are immediately synced to the current timestamp. No awkward catches up.",
-                color: "bg-yellow-100",
+                bgColor: "bg-yellow-100 dark:bg-yellow-500/20",
+                iconColor: "text-yellow-600 dark:text-yellow-400",
               },
               {
                 icon: <Play className="w-6 h-6" />,
                 title: "Ad-Free",
                 description: "Direct stream ingestion means no ads, no interruptions, no divergence.",
-                color: "bg-pink-100",
+                bgColor: "bg-pink-100 dark:bg-pink-500/20",
+                iconColor: "text-pink-600 dark:text-pink-400",
               },
             ].map((feature, i) => (
               <GlassCard 
@@ -143,7 +146,7 @@ const Index = () => {
                 className="p-6 animate-fade-in"
                 style={{ animationDelay: `${0.1 * (i + 1)}s` }}
               >
-                <div className={`w-12 h-12 ${feature.color} rounded-xl flex items-center justify-center mb-4 text-foreground`}>
+                <div className={`w-12 h-12 ${feature.bgColor} rounded-xl flex items-center justify-center mb-4 ${feature.iconColor}`}>
                   {feature.icon}
                 </div>
                 <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
