@@ -17,6 +17,7 @@ import {
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
 import { GlassInput } from "@/components/ui/GlassInput";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 
 interface Message {
@@ -133,9 +134,12 @@ const WatchRoom = () => {
             </div>
             
             <div className="flex items-center gap-3">
+              {/* Theme Toggle */}
+              <ThemeToggle />
+              
               {/* Participants */}
               <div className="flex -space-x-2">
-                {participants.map((p, i) => (
+                {participants.map((p) => (
                   <div 
                     key={p.name}
                     className="w-8 h-8 rounded-full border-2 border-background flex items-center justify-center text-xs font-medium"

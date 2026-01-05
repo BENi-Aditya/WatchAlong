@@ -4,6 +4,7 @@ import { ArrowLeft, Link2, Play, Loader2 } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
 import { GlassInput } from "@/components/ui/GlassInput";
+import { ThemeToggle } from "@/components/ThemeToggle";
 
 const CreateSession = () => {
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -29,16 +30,16 @@ const CreateSession = () => {
   };
 
   return (
-    <div className="min-h-screen bg-mesh overflow-hidden">
+    <div className="min-h-screen bg-mesh overflow-hidden relative">
       {/* Floating Decorative Elements */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-20 right-10 w-64 h-64 bg-pink-300/20 rounded-full blur-3xl float" />
-        <div className="absolute bottom-40 left-20 w-96 h-96 bg-yellow-200/20 rounded-full blur-3xl float" style={{ animationDelay: "2s" }} />
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute top-20 right-10 w-64 h-64 bg-pink-300/20 dark:bg-pink-500/10 rounded-full blur-3xl float" />
+        <div className="absolute bottom-40 left-20 w-96 h-96 bg-yellow-200/20 dark:bg-yellow-500/10 rounded-full blur-3xl float" style={{ animationDelay: "2s" }} />
       </div>
 
       {/* Navigation */}
       <nav className="relative z-10 px-6 py-4">
-        <div className="max-w-7xl mx-auto">
+        <div className="max-w-7xl mx-auto flex items-center justify-between">
           <button 
             onClick={() => navigate("/")}
             className="flex items-center gap-2 text-muted-foreground hover:text-foreground transition-smooth"
@@ -46,6 +47,7 @@ const CreateSession = () => {
             <ArrowLeft className="w-4 h-4" />
             Back
           </button>
+          <ThemeToggle />
         </div>
       </nav>
 

@@ -2,6 +2,7 @@ import { Play, Users, Zap, Link2, ArrowRight } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
 import { GlassInput } from "@/components/ui/GlassInput";
+import { ThemeToggle } from "@/components/ThemeToggle";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import heroBg from "@/assets/hero-bg.jpg";
@@ -21,12 +22,12 @@ const Index = () => {
   };
 
   return (
-    <div className="min-h-screen bg-mesh overflow-hidden">
+    <div className="min-h-screen bg-mesh overflow-hidden relative">
       {/* Floating Decorative Elements */}
-      <div className="fixed inset-0 pointer-events-none overflow-hidden">
-        <div className="absolute top-20 left-10 w-64 h-64 bg-pink-300/20 rounded-full blur-3xl float" />
-        <div className="absolute top-40 right-20 w-96 h-96 bg-yellow-200/20 rounded-full blur-3xl float" style={{ animationDelay: "2s" }} />
-        <div className="absolute bottom-20 left-1/3 w-72 h-72 bg-pink-200/15 rounded-full blur-3xl float" style={{ animationDelay: "4s" }} />
+      <div className="fixed inset-0 pointer-events-none overflow-hidden z-0">
+        <div className="absolute top-20 left-10 w-64 h-64 bg-pink-300/20 dark:bg-pink-500/10 rounded-full blur-3xl float" />
+        <div className="absolute top-40 right-20 w-96 h-96 bg-yellow-200/20 dark:bg-yellow-500/10 rounded-full blur-3xl float" style={{ animationDelay: "2s" }} />
+        <div className="absolute bottom-20 left-1/3 w-72 h-72 bg-pink-200/15 dark:bg-pink-500/8 rounded-full blur-3xl float" style={{ animationDelay: "4s" }} />
       </div>
 
       {/* Navigation */}
@@ -36,11 +37,14 @@ const Index = () => {
             <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center glow-pink">
               <Play className="w-5 h-5 text-primary-foreground fill-current" />
             </div>
-            <span className="text-xl font-semibold">SyncWatch</span>
+            <span className="text-xl font-semibold tracking-tight">SyncWatch</span>
           </div>
-          <GlassButton variant="ghost" size="sm">
-            Sign In
-          </GlassButton>
+          <div className="flex items-center gap-4">
+            <ThemeToggle />
+            <GlassButton variant="ghost" size="sm">
+              Sign In
+            </GlassButton>
+          </div>
         </div>
       </nav>
 
