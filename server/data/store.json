@@ -1,0 +1,540 @@
+{
+  "users": [
+    {
+      "id": "4KI_h1q8-2if3TC_zRTxs",
+      "email": "guest-4KI_h1q8-2if3TC_zRTxs@guest.local",
+      "username": "Guest 4KI_h",
+      "avatarUrl": null,
+      "passwordHash": "",
+      "createdAt": "2026-01-05T07:25:06.312Z"
+    },
+    {
+      "id": "hX8o1yfFtZ_KW7Wsh6xlw",
+      "email": "guest-hX8o1yfFtZ_KW7Wsh6xlw@guest.local",
+      "username": "Guest hX8o1",
+      "avatarUrl": null,
+      "passwordHash": "",
+      "createdAt": "2026-01-05T07:32:51.663Z"
+    },
+    {
+      "id": "vYmaj0-7K4O2ScrruQgYP",
+      "email": "guest-vYmaj0-7K4O2ScrruQgYP@guest.local",
+      "username": "Guest vYmaj",
+      "avatarUrl": null,
+      "passwordHash": "",
+      "createdAt": "2026-01-05T07:38:43.332Z"
+    },
+    {
+      "id": "YJ3t75LWWSt61L3S7tIsa",
+      "email": "guest-YJ3t75LWWSt61L3S7tIsa@guest.local",
+      "username": "Guest YJ3t7",
+      "avatarUrl": null,
+      "passwordHash": "",
+      "createdAt": "2026-01-05T09:59:39.309Z"
+    },
+    {
+      "id": "mqBmLZmzv3HcMvwcogyZO",
+      "email": "guest-mqBmLZmzv3HcMvwcogyZO@guest.local",
+      "username": "Guest mqBmL",
+      "avatarUrl": null,
+      "passwordHash": "",
+      "createdAt": "2026-01-05T10:11:42.107Z"
+    },
+    {
+      "id": "RddH7VWCgmLz9SJ2WcXjM",
+      "email": "guest-RddH7VWCgmLz9SJ2WcXjM@guest.local",
+      "username": "Guest RddH7",
+      "avatarUrl": null,
+      "passwordHash": "",
+      "createdAt": "2026-01-05T10:40:37.274Z"
+    },
+    {
+      "id": "5ruZrH6KtrN_gEJ58bQAb",
+      "email": "guest-5ruZrH6KtrN_gEJ58bQAb@guest.local",
+      "username": "Guest 5ruZr",
+      "avatarUrl": null,
+      "passwordHash": "",
+      "createdAt": "2026-01-05T20:46:29.274Z"
+    }
+  ],
+  "sessions": [
+    {
+      "id": "HRM6da54Pzi0Fl3CwzA4T",
+      "joinCode": "NHHSCL",
+      "createdAt": "2026-01-05T07:25:26.129Z",
+      "hostUserId": "4KI_h1q8-2if3TC_zRTxs",
+      "youtubeUrl": "https://www.youtube.com/watch?v=G5zXxapXinE",
+      "youtubeId": "G5zXxapXinE",
+      "media": {
+        "title": null,
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": false,
+        "positionSec": 0,
+        "rate": 1,
+        "anchorMs": 1767597926129
+      },
+      "stream": {
+        "status": "running",
+        "outDir": "/Users/tripathd/Downloads/Manual Library/Projects/AK-RAVE/server/streams/HRM6da54Pzi0Fl3CwzA4T",
+        "playlistPath": "/Users/tripathd/Downloads/Manual Library/Projects/AK-RAVE/server/streams/HRM6da54Pzi0Fl3CwzA4T/index.m3u8",
+        "startedMs": 1767597926132
+      }
+    },
+    {
+      "id": "qZcktojlNs3Huogv_oz5h",
+      "joinCode": "32QSNF",
+      "createdAt": "2026-01-05T07:33:10.030Z",
+      "hostUserId": "hX8o1yfFtZ_KW7Wsh6xlw",
+      "youtubeUrl": "https://www.youtube.com/watch?v=G5zXxapXinE",
+      "youtubeId": "G5zXxapXinE",
+      "media": {
+        "title": null,
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": false,
+        "positionSec": 0,
+        "rate": 1,
+        "anchorMs": 1767598390030
+      },
+      "stream": {
+        "status": "running",
+        "outDir": "/Users/tripathd/Downloads/Manual Library/Projects/AK-RAVE/server/streams/qZcktojlNs3Huogv_oz5h",
+        "playlistPath": "/Users/tripathd/Downloads/Manual Library/Projects/AK-RAVE/server/streams/qZcktojlNs3Huogv_oz5h/index.m3u8",
+        "startedMs": 1767598390034
+      }
+    },
+    {
+      "id": "VEDCJ34MHOAuMBNiM3Nuq",
+      "joinCode": "FQVQXP",
+      "createdAt": "2026-01-05T07:38:56.858Z",
+      "hostUserId": "vYmaj0-7K4O2ScrruQgYP",
+      "youtubeUrl": "https://www.youtube.com/watch?v=T_OVu81s1MI",
+      "youtubeId": "T_OVu81s1MI",
+      "media": {
+        "title": null,
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": false,
+        "positionSec": 0,
+        "rate": 1,
+        "anchorMs": 1767598736858
+      },
+      "stream": {
+        "status": "running",
+        "outDir": "/Users/tripathd/Downloads/Manual Library/Projects/AK-RAVE/server/streams/VEDCJ34MHOAuMBNiM3Nuq",
+        "playlistPath": "/Users/tripathd/Downloads/Manual Library/Projects/AK-RAVE/server/streams/VEDCJ34MHOAuMBNiM3Nuq/index.m3u8",
+        "startedMs": 1767598736860
+      }
+    },
+    {
+      "id": "NagKC51I_YdAN8PIC80hH",
+      "joinCode": "DKVFEG",
+      "createdAt": "2026-01-05T07:53:05.687Z",
+      "hostUserId": "vYmaj0-7K4O2ScrruQgYP",
+      "youtubeUrl": "https://www.youtube.com/watch?v=_VBYaluRKlY&list=RD_VBYaluRKlY&start_radio=1",
+      "youtubeId": "_VBYaluRKlY",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": false,
+        "positionSec": 0,
+        "rate": 1,
+        "anchorMs": 1767599585687
+      },
+      "stream": {
+        "status": "external"
+      }
+    },
+    {
+      "id": "pJIRmQSDRHk0_PxD21ftp",
+      "joinCode": "UFFNPC",
+      "createdAt": "2026-01-05T09:23:29.880Z",
+      "hostUserId": "vYmaj0-7K4O2ScrruQgYP",
+      "youtubeUrl": "https://www.youtube.com/watch?v=jVDHaCdx8no",
+      "youtubeId": "jVDHaCdx8no",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": false,
+        "positionSec": 0,
+        "rate": 1,
+        "anchorMs": 1767605009880
+      },
+      "stream": {
+        "status": "external"
+      }
+    },
+    {
+      "id": "eyqN-6sbknJzqMJoCELsC",
+      "joinCode": "NHTCWX",
+      "createdAt": "2026-01-05T09:35:40.129Z",
+      "hostUserId": "vYmaj0-7K4O2ScrruQgYP",
+      "youtubeUrl": "https://www.youtube.com/watch?v=jVDHaCdx8no",
+      "youtubeId": "jVDHaCdx8no",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": false,
+        "positionSec": 0,
+        "rate": 1,
+        "anchorMs": 1767605740129
+      },
+      "stream": {
+        "status": "external"
+      }
+    },
+    {
+      "id": "y9ncK5nksAeMx51iNOBlU",
+      "joinCode": "3DGP4H",
+      "createdAt": "2026-01-05T09:35:59.639Z",
+      "hostUserId": "vYmaj0-7K4O2ScrruQgYP",
+      "youtubeUrl": "https://www.youtube.com/watch?v=jVDHaCdx8no",
+      "youtubeId": "jVDHaCdx8no",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": false,
+        "positionSec": 0,
+        "rate": 1,
+        "anchorMs": 1767605759639
+      },
+      "stream": {
+        "status": "external"
+      }
+    },
+    {
+      "id": "8jycPO2fOWMjBOGIEGwc5",
+      "joinCode": "4WZBXU",
+      "createdAt": "2026-01-05T09:36:46.426Z",
+      "hostUserId": "vYmaj0-7K4O2ScrruQgYP",
+      "youtubeUrl": "https://www.youtube.com/watch?v=jVDHaCdx8no",
+      "youtubeId": "jVDHaCdx8no",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": false,
+        "positionSec": 0,
+        "rate": 1,
+        "anchorMs": 1767605806426
+      },
+      "stream": {
+        "status": "external"
+      }
+    },
+    {
+      "id": "SJYkDX-xHUfOMO1ofoS3w",
+      "joinCode": "3UBUQV",
+      "createdAt": "2026-01-05T09:39:59.631Z",
+      "hostUserId": "vYmaj0-7K4O2ScrruQgYP",
+      "youtubeUrl": "https://www.youtube.com/watch?v=jVDHaCdx8no",
+      "youtubeId": "jVDHaCdx8no",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": false,
+        "positionSec": 0,
+        "rate": 1,
+        "anchorMs": 1767605999631
+      },
+      "stream": {
+        "status": "external"
+      }
+    },
+    {
+      "id": "GoX6TzhQg6Zfp09fL5Qzi",
+      "joinCode": "9BHSD3",
+      "createdAt": "2026-01-05T09:51:48.118Z",
+      "hostUserId": "vYmaj0-7K4O2ScrruQgYP",
+      "youtubeUrl": "https://www.youtube.com/watch?v=scMHIiO3gF4",
+      "youtubeId": "scMHIiO3gF4",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": false,
+        "positionSec": 0,
+        "rate": 1,
+        "anchorMs": 1767606708118
+      }
+    },
+    {
+      "id": "VOVY6Dn7QeW5QDa2phhOZ",
+      "joinCode": "FCF9ED",
+      "createdAt": "2026-01-05T09:59:06.803Z",
+      "hostUserId": "vYmaj0-7K4O2ScrruQgYP",
+      "youtubeUrl": "https://www.youtube.com/watch?v=scMHIiO3gF4",
+      "youtubeId": "scMHIiO3gF4",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": false,
+        "positionSec": 0,
+        "rate": 1,
+        "anchorMs": 1767607146803
+      }
+    },
+    {
+      "id": "pdHiNNsa05kla1gsK4bKe",
+      "joinCode": "ZX23WF",
+      "createdAt": "2026-01-05T10:00:43.196Z",
+      "hostUserId": "vYmaj0-7K4O2ScrruQgYP",
+      "youtubeUrl": "https://www.youtube.com/watch?v=I6zMJC0etzE",
+      "youtubeId": "I6zMJC0etzE",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": false,
+        "positionSec": 0,
+        "rate": 1,
+        "anchorMs": 1767607243196
+      }
+    },
+    {
+      "id": "WoFcpSCqbRe5c0lMBsfoc",
+      "joinCode": "LLPYLC",
+      "createdAt": "2026-01-05T10:11:46.818Z",
+      "hostUserId": "mqBmLZmzv3HcMvwcogyZO",
+      "youtubeUrl": "https://www.youtube.com/watch?v=scMHIiO3gF4",
+      "youtubeId": "scMHIiO3gF4",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": false,
+        "positionSec": 2168.129,
+        "rate": 1,
+        "anchorMs": 1767608499567
+      }
+    },
+    {
+      "id": "845a6NhQP1IO1brWmAbf7",
+      "joinCode": "929ZWZ",
+      "createdAt": "2026-01-05T10:25:22.453Z",
+      "hostUserId": "mqBmLZmzv3HcMvwcogyZO",
+      "youtubeUrl": "https://www.youtube.com/watch?v=scMHIiO3gF4",
+      "youtubeId": "scMHIiO3gF4",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": false,
+        "positionSec": 5417.127,
+        "rate": 1,
+        "anchorMs": 1767609905729
+      }
+    },
+    {
+      "id": "tG7VZTukUYuTLUJ7rHtoP",
+      "joinCode": "VHT2V4",
+      "createdAt": "2026-01-05T10:40:05.488Z",
+      "hostUserId": "mqBmLZmzv3HcMvwcogyZO",
+      "youtubeUrl": "https://www.youtube.com/watch?v=scMHIiO3gF4",
+      "youtubeId": "scMHIiO3gF4",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": true,
+        "positionSec": 475.73348291015606,
+        "rate": 1,
+        "anchorMs": 1767609893321
+      }
+    },
+    {
+      "id": "Rw9oOJz1dkprynyHdJm0r",
+      "joinCode": "WWSZBM",
+      "createdAt": "2026-01-05T10:45:29.205Z",
+      "hostUserId": "mqBmLZmzv3HcMvwcogyZO",
+      "youtubeUrl": "https://www.youtube.com/watch?v=Egg8OXpQG5M",
+      "youtubeId": "Egg8OXpQG5M",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": true,
+        "positionSec": 384.942,
+        "rate": 1,
+        "anchorMs": 1767610084716
+      }
+    },
+    {
+      "id": "-mSsRUorwCUatVJChnp0Q",
+      "joinCode": "UHXEGP",
+      "createdAt": "2026-01-05T10:48:41.732Z",
+      "hostUserId": "mqBmLZmzv3HcMvwcogyZO",
+      "youtubeUrl": "https://www.youtube.com/watch?v=cNTQperBDV8",
+      "youtubeId": "cNTQperBDV8",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": true,
+        "positionSec": 172.75,
+        "rate": 1,
+        "anchorMs": 1767610158702
+      }
+    },
+    {
+      "id": "Sfz7cYRE4WvMNR6HEdpVd",
+      "joinCode": "NNGRBV",
+      "createdAt": "2026-01-05T15:49:20.316Z",
+      "hostUserId": "mqBmLZmzv3HcMvwcogyZO",
+      "youtubeUrl": "https://www.youtube.com/watch?v=g8gbbBTVeD0",
+      "youtubeId": "g8gbbBTVeD0",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": false,
+        "positionSec": 1295.7919999999997,
+        "rate": 1,
+        "anchorMs": 1767629488888
+      }
+    },
+    {
+      "id": "7ycE-dfKfTxSLgOEk1Zve",
+      "joinCode": "CC3EM3",
+      "createdAt": "2026-01-05T20:48:31.100Z",
+      "hostUserId": "5ruZrH6KtrN_gEJ58bQAb",
+      "youtubeUrl": "https://www.youtube.com/watch?v=scMHIiO3gF4",
+      "youtubeId": "scMHIiO3gF4",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": true
+      },
+      "playback": {
+        "isPlaying": true,
+        "positionSec": 0.25,
+        "rate": 1,
+        "anchorMs": 1767646126284
+      }
+    },
+    {
+      "id": "vYEhW06opYLAN4RCa3VXR",
+      "joinCode": "HWXDFP",
+      "createdAt": "2026-01-05T20:51:24.012Z",
+      "hostUserId": "5ruZrH6KtrN_gEJ58bQAb",
+      "youtubeUrl": "https://www.youtube.com/watch?v=RyNFOnJdQNs",
+      "youtubeId": "RyNFOnJdQNs",
+      "media": {
+        "title": "Demo Stream",
+        "lengthSeconds": null
+      },
+      "permissions": {
+        "allowParticipantControl": false
+      },
+      "playback": {
+        "isPlaying": true,
+        "positionSec": 4.51,
+        "rate": 1,
+        "anchorMs": 1767646290901
+      }
+    }
+  ],
+  "joinCodeToSessionId": {
+    "NHHSCL": "HRM6da54Pzi0Fl3CwzA4T",
+    "32QSNF": "qZcktojlNs3Huogv_oz5h",
+    "FQVQXP": "VEDCJ34MHOAuMBNiM3Nuq",
+    "DKVFEG": "NagKC51I_YdAN8PIC80hH",
+    "UFFNPC": "pJIRmQSDRHk0_PxD21ftp",
+    "NHTCWX": "eyqN-6sbknJzqMJoCELsC",
+    "3DGP4H": "y9ncK5nksAeMx51iNOBlU",
+    "4WZBXU": "8jycPO2fOWMjBOGIEGwc5",
+    "3UBUQV": "SJYkDX-xHUfOMO1ofoS3w",
+    "9BHSD3": "GoX6TzhQg6Zfp09fL5Qzi",
+    "FCF9ED": "VOVY6Dn7QeW5QDa2phhOZ",
+    "ZX23WF": "pdHiNNsa05kla1gsK4bKe",
+    "LLPYLC": "WoFcpSCqbRe5c0lMBsfoc",
+    "929ZWZ": "845a6NhQP1IO1brWmAbf7",
+    "VHT2V4": "tG7VZTukUYuTLUJ7rHtoP",
+    "WWSZBM": "Rw9oOJz1dkprynyHdJm0r",
+    "UHXEGP": "-mSsRUorwCUatVJChnp0Q",
+    "NNGRBV": "Sfz7cYRE4WvMNR6HEdpVd",
+    "CC3EM3": "7ycE-dfKfTxSLgOEk1Zve",
+    "HWXDFP": "vYEhW06opYLAN4RCa3VXR"
+  }
+}

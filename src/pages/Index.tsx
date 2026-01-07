@@ -6,10 +6,14 @@ import { ThemeToggle } from "@/components/ThemeToggle";
 import { useState } from "react";
 import { useNavigate } from "react-router-dom";
 import heroBg from "@/assets/hero-bg.jpg";
+import { useAuth } from "@/lib/auth";
 
 const Index = () => {
   const [joinCode, setJoinCode] = useState("");
   const navigate = useNavigate();
+  const { token, logout, user } = useAuth();
+
+  const initials = (user?.username || user?.email || "").trim().slice(0, 2).toUpperCase();
 
   const handleCreateSession = () => {
     navigate("/create");
@@ -41,9 +45,30 @@ const Index = () => {
           </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
-            <GlassButton variant="ghost" size="sm">
-              Sign In
-            </GlassButton>
+            {token ? (
+              <div className="flex items-center gap-3">
+                <GlassButton variant="ghost" size="sm" onClick={logout}>
+                  Sign Out
+                </GlassButton>
+                <div className="w-9 h-9 rounded-full overflow-hidden glass-panel-subtle flex items-center justify-center text-xs font-semibold">
+                  {user?.avatarUrl ? (
+                    <img
+                      src={user.avatarUrl}
+                      alt={user.username}
+                      className="w-full h-full object-cover"
+                      referrerPolicy="no-referrer"
+                    />
+                  ) : (
+                    <span>{initials || "U"}</span>
+                  )}
+                </div>
+              </div>
+            ) : (
+              <GlassButton variant="ghost" size="sm" onClick={() => navigate("/auth")}
+              >
+                Sign In
+              </GlassButton>
+            )}
           </div>
         </div>
       </nav>

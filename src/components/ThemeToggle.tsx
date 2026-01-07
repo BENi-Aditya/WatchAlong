@@ -4,7 +4,10 @@ import { useEffect, useState } from "react";
 export const ThemeToggle = () => {
   const [isDark, setIsDark] = useState(() => {
     if (typeof window !== "undefined") {
-      return document.documentElement.classList.contains("dark");
+      const savedTheme = localStorage.getItem("theme");
+      if (savedTheme === "dark") return true;
+      if (savedTheme === "light") return false;
+      return true;
     }
     return false;
   });
@@ -22,13 +25,9 @@ export const ThemeToggle = () => {
 
   useEffect(() => {
     const savedTheme = localStorage.getItem("theme");
-    if (savedTheme === "dark") {
-      setIsDark(true);
-    } else if (savedTheme === "light") {
-      setIsDark(false);
-    } else if (window.matchMedia("(prefers-color-scheme: dark)").matches) {
-      setIsDark(true);
-    }
+    if (savedTheme === "dark") setIsDark(true);
+    else if (savedTheme === "light") setIsDark(false);
+    else setIsDark(true);
   }, []);
 
   return (

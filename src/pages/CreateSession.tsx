@@ -5,28 +5,115 @@ import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
 import { GlassInput } from "@/components/ui/GlassInput";
 import { ThemeToggle } from "@/components/ThemeToggle";
+import { toast } from "@/components/ui/sonner";
+import { nanoid } from "nanoid";
+import { supabase } from "@/lib/supabase";
+import { useAuth } from "@/lib/auth";
+
+function createJoinCode() {
+  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
+  const id = nanoid(10);
+  let code = "";
+  for (let i = 0; i < 6; i += 1) {
+    const idx = id.charCodeAt(i) % alphabet.length;
+    code += alphabet[idx];
+  }
+  return code;
+}
 
 const CreateSession = () => {
   const [youtubeUrl, setYoutubeUrl] = useState("");
   const [isCreating, setIsCreating] = useState(false);
   const navigate = useNavigate();
+  const { user } = useAuth();
 
   const handleCreateSession = async () => {
     if (!youtubeUrl.trim()) return;
+    if (!user?.id) {
+      toast.error("Please sign in first");
+      return;
+    }
     
     setIsCreating(true);
     
-    // Simulate session creation
-    await new Promise(resolve => setTimeout(resolve, 1500));
-    
-    // Generate a random session code
-    const sessionCode = Math.random().toString(36).substring(2, 8).toUpperCase();
-    navigate(`/room/${sessionCode}`);
+    try {
+      const youtubeUrlTrim = youtubeUrl.trim();
+      const youtubeId = extractYoutubeId(youtubeUrlTrim);
+      if (!youtubeId) {
+        toast.error("Invalid YouTube URL");
+        return;
+      }
+
+      let created: { id: string; join_code: string } | null = null;
+      for (let attempt = 0; attempt < 6; attempt += 1) {
+        const joinCode = createJoinCode();
+        const { data, error } = await supabase
+          .from("sessions")
+          .insert({
+            join_code: joinCode,
+            host_user_id: user.id,
+            youtube_url: youtubeUrlTrim,
+            youtube_id: youtubeId,
+            allow_participant_control: true,
+          })
+          .select("id, join_code")
+          .single();
+
+        if (!error && data) {
+          created = data;
+          break;
+        }
+
+        const isUniqueViolation = String((error as any)?.code || "") === "23505";
+        if (!isUniqueViolation) {
+          throw new Error(error?.message || "Failed to create session");
+        }
+      }
+
+      if (!created) throw new Error("Failed to generate a unique join code");
+
+      await supabase
+        .from("session_playback")
+        .insert({
+          session_id: created.id,
+          is_playing: false,
+          position_sec: 0,
+          rate: 1,
+        });
+
+      navigate(`/room/${created.join_code}`);
+    } catch (e) {
+      const message = e instanceof Error ? e.message : "Failed to create session";
+      toast.error(message);
+    } finally {
+      setIsCreating(false);
+    }
   };
 
   const isValidYoutubeUrl = (url: string) => {
     const pattern = /^(https?:\/\/)?(www\.)?(youtube\.com\/watch\?v=|youtu\.be\/|youtube\.com\/embed\/)[\w-]+/;
     return pattern.test(url);
+  };
+
+  const extractYoutubeId = (url: string) => {
+    const raw = String(url || "").trim();
+    if (!raw) return null;
+    let id: string | null = null;
+    try {
+      const u = new URL(raw);
+      if (u.hostname === "youtu.be") {
+        id = u.pathname.replace("/", "");
+      } else if (u.hostname.endsWith("youtube.com")) {
+        if (u.pathname === "/watch") id = u.searchParams.get("v");
+        if (!id && u.pathname.startsWith("/embed/")) id = u.pathname.split("/embed/")[1];
+        if (!id && u.pathname.startsWith("/shorts/")) id = u.pathname.split("/shorts/")[1];
+      }
+    } catch {
+      id = null;
+    }
+    const normalized = String(id || "").trim();
+    if (/^[a-zA-Z0-9_-]{11}$/.test(normalized)) return normalized;
+    return null;
   };
 
   return (
@@ -83,19 +170,29 @@ const CreateSession = () => {
 
               {/* Video Preview (placeholder) */}
               {isValidYoutubeUrl(youtubeUrl) && (
+                (() => {
+                  const youtubeId = extractYoutubeId(youtubeUrl);
+                  const thumb = youtubeId ? `https://i.ytimg.com/vi/${youtubeId}/hqdefault.jpg` : null;
+                  return (
                 <div className="animate-fade-in">
                   <label className="block text-sm font-medium mb-2">Preview</label>
                   <div className="aspect-video bg-muted rounded-xl overflow-hidden relative">
-                    <div className="absolute inset-0 flex items-center justify-center">
-                      <div className="text-center">
-                        <div className="w-12 h-12 rounded-full bg-primary/10 mx-auto mb-2 flex items-center justify-center">
-                          <Play className="w-6 h-6 text-primary" />
+                    {thumb ? (
+                      <img src={thumb} alt="YouTube thumbnail" className="absolute inset-0 w-full h-full object-cover" />
+                    ) : (
+                      <div className="absolute inset-0 flex items-center justify-center">
+                        <div className="text-center">
+                          <div className="w-12 h-12 rounded-full bg-primary/10 mx-auto mb-2 flex items-center justify-center">
+                            <Play className="w-6 h-6 text-primary" />
+                          </div>
+                          <p className="text-sm text-muted-foreground">Video ready to play</p>
                         </div>
-                        <p className="text-sm text-muted-foreground">Video ready to stream</p>
                       </div>
-                    </div>
+                    )}
                   </div>
                 </div>
+                  );
+                })()
               )}
 
               <GlassButton 
