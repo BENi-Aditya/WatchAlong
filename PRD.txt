@@ -1,0 +1,317 @@
+PRD — Web-Based Synchronized Watch Platform (Proxy / Re-Streaming Model)
+1. Problem (P)
+
+Watching videos together remotely is still awkward.
+
+Existing solutions rely on embeds and client-side playback. Ads appear unpredictably. Buffers differ. One pause ruins the moment. Sync drifts quietly until two people are laughing at different scenes. The illusion of “together” collapses.
+
+Rave solves part of this—but locks users to specific platforms and devices. macOS users are excluded. Web users are second-class.
+
+The real enemy is non-deterministic playback.
+
+2. Agitation (A)
+
+Humans are extremely sensitive to audiovisual mismatch. Research from ITU-R shows humans notice lip-sync errors above ~45 ms for audio-leading and ~125 ms for video-leading. Once desync crosses that threshold, immersion breaks immediately.
+
+Ads worsen this:
+
+Different ad inventory per user
+
+Variable ad lengths
+
+Mid-roll insertion without warning
+
+Once one client diverges, resyncing becomes guesswork.
+
+What should feel like watching together turns into:
+
+“Wait, pause.”
+
+“I’m at 3:42.”
+
+“Reload.”
+
+That friction kills the product.
+
+3. Solution (S)
+
+A server-authoritative proxy + re-streaming architecture.
+
+No client controls playback directly.
+No YouTube player on the client.
+No ads.
+No drift.
+
+All users consume the same stream, controlled centrally, with deterministic timing.
+
+4. Product Scope
+4.1 Platform
+
+Web application
+
+Desktop-first, mobile-compatible
+
+Chromium, Safari, Firefox supported
+
+4.2 Supported Media (Phase 1)
+
+YouTube links only
+
+Ingested server-side
+
+Transcoded or packet-forwarded without ads
+
+5. Core Functional Requirements
+5.1 Authentication & Accounts
+
+Email + password
+
+OAuth (Google) optional
+
+Username + avatar
+
+Presence status (online / in room)
+
+5.2 Session Lifecycle
+Create Session
+
+Input: YouTube URL
+
+Backend:
+
+Validates URL
+
+Extracts video ID
+
+Starts ingest pipeline
+
+Output:
+
+Unique session ID
+
+Short join code
+
+Shareable link
+
+Join Session
+
+Via:
+
+Join code
+
+Direct link
+
+Late joiners:
+
+Instantly synced to current timestamp
+
+5.3 Playback Model (Critical)
+Authority
+
+Server is the single source of truth
+
+Clients are dumb renderers
+
+Playback Actions
+
+Play
+
+Pause
+
+Seek
+
+Rate change (optional, phase 2)
+
+All actions:
+
+Triggered by host or any permitted user
+
+Applied server-side
+
+Broadcast as state updates
+
+Sync Strategy
+
+Server maintains:
+
+Absolute playback time (monotonic clock)
+
+Playback state
+
+Clients:
+
+Continuously reconcile local buffer vs server clock
+
+Micro-correct using small skips, never hard jumps
+
+Target drift: <50 ms
+
+5.4 Chat
+
+Real-time text chat
+
+WebSocket-based
+
+Timestamps relative to video time
+
+Optional emoji reactions
+
+5.5 Roles
+
+Host
+
+Full playback control
+
+Participants
+
+View + chat
+
+Playback permissions configurable
+
+6. Non-Functional Requirements
+6.1 Performance
+
+Playback start latency: <2s after join
+
+Control propagation: <150 ms
+
+Chat latency: <100 ms
+
+6.2 Scalability
+
+2–10 users per room (Phase 1)
+
+Horizontal scaling via stateless app servers
+
+Media servers isolated
+
+6.3 Reliability
+
+Client reconnect auto-resync
+
+Server crash recovery via session snapshot
+
+7. Technical Architecture (High-Level)
+Ingest
+
+Server fetches YouTube stream
+
+Removes ads implicitly by bypassing YouTube player
+
+Extracts raw media stream
+
+Processing
+
+Optional transcoding to standardized bitrate
+
+Segmenting into HLS/DASH
+
+Distribution
+
+Media server (e.g., NGINX + RTMP / WebRTC SFU)
+
+CDN optional for scale
+
+Control Plane
+
+WebSockets for:
+
+Playback commands
+
+Chat
+
+Presence
+
+Data Plane
+
+PostgreSQL: users, sessions
+
+Redis: real-time state
+
+Object storage: temporary segments
+
+8. UI / UX Requirements
+8.1 Visual Language
+
+Frosted / liquid glass aesthetic
+
+Inspired by Apple’s current design language:
+
+Semi-transparent panels
+
+Subtle Gaussian blur
+
+Soft shadows
+
+Minimal borders
+
+No visual noise. No gradients for decoration. Everything earns its place.
+
+8.2 Layout (Session View)
+Left (Primary)
+
+Video player
+
+Rounded corners
+
+Floating playback controls
+
+Minimal chrome
+
+Right (Secondary)
+
+Chat panel
+
+Collapsible
+
+Frosted background
+
+Message bubbles with light translucency
+
+8.3 Typography
+
+System fonts
+
+Large, calm hierarchy
+
+No aggressive weights
+
+8.4 Motion
+
+Micro-animations only
+
+Ease-in-out
+
+No bounce
+
+Purpose: feedback, not flair
+
+9. Security Considerations
+
+HTTPS only
+
+Signed session tokens
+
+Rate limiting on join attempts
+
+Stream URLs never exposed to clients
+
+10. Out of Scope (Explicit)
+
+DRM protection
+
+Public rooms
+
+Recording sessions
+
+Native apps (for now)
+
+11. Success Metrics
+
+Time-to-sync for new joiner
+
+Average playback drift
+
+Session duration
+
+Drop-off during first 5 minutes

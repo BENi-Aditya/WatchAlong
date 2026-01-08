@@ -3,8 +3,11 @@ import { useParams, useNavigate } from "react-router-dom";
 import { 
   Play, 
   Pause, 
+  Plus,
   Volume2, 
   VolumeX, 
+  Link2,
+  Loader2,
   Maximize, 
   Smile,
   MessageCircle, 
@@ -23,7 +26,6 @@ import { GlassButton } from "@/components/ui/GlassButton";
 import { GlassInput } from "@/components/ui/GlassInput";
 import { Slider } from "@/components/ui/slider";
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover";
-import { ResizableHandle, ResizablePanel, ResizablePanelGroup } from "@/components/ui/resizable";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/sonner";
@@ -90,6 +92,9 @@ const WatchRoom = () => {
   const [replyTo, setReplyTo] = useState<Message | null>(null);
   const [replyColumnsReady, setReplyColumnsReady] = useState(true);
   const [copied, setCopied] = useState(false);
+  const [watchMoreOpen, setWatchMoreOpen] = useState(false);
+  const [watchMoreUrl, setWatchMoreUrl] = useState("");
+  const [isSwitchingVideo, setIsSwitchingVideo] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [interactionRequired, setInteractionRequired] = useState(false);
   const [wsConnected, setWsConnected] = useState(false);
@@ -115,6 +120,7 @@ const WatchRoom = () => {
   const playerHostRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
   const playerReadyRef = useRef(false);
+  const loadedYoutubeIdRef = useRef<string | null>(null);
   const videoContainerRef = useRef<HTMLDivElement | null>(null);
   const lastServerStateRef = useRef<PlaybackState | null>(null);
   const clockOffsetMsRef = useRef(0);
@@ -444,6 +450,7 @@ const WatchRoom = () => {
         events: {
           onReady: () => {
             playerReadyRef.current = true;
+            loadedYoutubeIdRef.current = youtubeId;
             try {
               if (isMuted) playerRef.current?.mute?.();
               else playerRef.current?.unMute?.();
@@ -473,6 +480,23 @@ const WatchRoom = () => {
 
     ensureScript();
   }, [youtubeId, isMuted]);
+
+  useEffect(() => {
+    if (!youtubeId) return;
+    const player = playerRef.current;
+    if (!player || !playerReadyRef.current) return;
+    if (loadedYoutubeIdRef.current === youtubeId) return;
+
+    try {
+      player.loadVideoById?.(youtubeId, 0);
+    } catch {
+    }
+    loadedYoutubeIdRef.current = youtubeId;
+    setDurationSec(0);
+    setProgress(0);
+    setIsScrubbing(false);
+    setScrubSec(0);
+  }, [youtubeId]);
 
   useEffect(() => {
     const onKeyDown = (e: KeyboardEvent) => {
@@ -834,6 +858,66 @@ const WatchRoom = () => {
     setTimeout(() => setCopied(false), 2000);
   };
 
+  const extractYoutubeId = (url: string) => {
+    const raw = String(url || "").trim();
+    if (!raw) return null;
+    let id: string | null = null;
+    try {
+      const u = new URL(raw);
+      if (u.hostname === "youtu.be") {
+        id = u.pathname.replace("/", "");
+      } else if (u.hostname.endsWith("youtube.com")) {
+        if (u.pathname === "/watch") id = u.searchParams.get("v");
+        if (!id && u.pathname.startsWith("/embed/")) id = u.pathname.split("/embed/")[1];
+        if (!id && u.pathname.startsWith("/shorts/")) id = u.pathname.split("/shorts/")[1];
+      }
+    } catch {
+      id = null;
+    }
+    const normalized = String(id || "").trim();
+    if (/^[a-zA-Z0-9_-]{11}$/.test(normalized)) return normalized;
+    return null;
+  };
+
+  const handleWatchMore = () => {
+    if (!isHost) return;
+    if (!resolvedSessionId) return;
+    if (!watchMoreUrl.trim()) return;
+
+    const urlTrim = watchMoreUrl.trim();
+    const nextYoutubeId = extractYoutubeId(urlTrim);
+    if (!nextYoutubeId) {
+      toast.error("Invalid YouTube URL");
+      return;
+    }
+
+    setIsSwitchingVideo(true);
+    void (async () => {
+      try {
+        const { error: sessionErr } = await supabase
+          .from("sessions")
+          .update({ youtube_url: urlTrim, youtube_id: nextYoutubeId })
+          .eq("id", resolvedSessionId);
+        if (sessionErr) throw new Error(sessionErr.message);
+
+        const { error: playbackErr } = await supabase
+          .from("session_playback")
+          .update({ is_playing: true, position_sec: 0, rate: 1 })
+          .eq("session_id", resolvedSessionId);
+        if (playbackErr) throw new Error(playbackErr.message);
+
+        setWatchMoreUrl("");
+        setWatchMoreOpen(false);
+        toast.success("Switched video");
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Failed to switch video";
+        toast.error(message);
+      } finally {
+        setIsSwitchingVideo(false);
+      }
+    })();
+  };
+
   const sendPlaybackCommand = (action: "play" | "pause" | "seek", payload?: any) => {
     if (!canControlPlayback) {
       toast.error("Playback controls are locked by the host");
@@ -850,9 +934,24 @@ const WatchRoom = () => {
     const rate = st?.rate || 1;
     const isPlayingNow = Boolean(st?.isPlaying);
 
+    const nowServerMs = Date.now() + clockOffsetMsRef.current;
+    const applyOptimistic = (next: PlaybackState) => {
+      setPlayback(next);
+      lastServerStateRef.current = next;
+      setIsPlaying(Boolean(next.isPlaying));
+      setHasSnapshot(true);
+      reconcileToServer(next);
+    };
+
     if (action === "play") {
       userGestureRef.current = true;
-      pendingCommandRef.current = { action: "play", untilMs: Date.now() + 1500 };
+      pendingCommandRef.current = { action: "play", untilMs: Date.now() + 5000 };
+      applyOptimistic({
+        isPlaying: true,
+        positionSec: current,
+        rate,
+        serverTimeMs: nowServerMs,
+      });
       const player = playerRef.current;
       if (player && playerReadyRef.current) {
         try {
@@ -863,11 +962,23 @@ const WatchRoom = () => {
     }
 
     if (action === "pause") {
-      pendingCommandRef.current = { action: "pause", untilMs: Date.now() + 1500 };
+      pendingCommandRef.current = { action: "pause", untilMs: Date.now() + 5000 };
+      applyOptimistic({
+        isPlaying: false,
+        positionSec: current,
+        rate,
+        serverTimeMs: nowServerMs,
+      });
     }
 
     if (action === "seek") {
       const positionSec = Number(payload?.positionSec);
+      applyOptimistic({
+        isPlaying: isPlayingNow,
+        positionSec: Number.isFinite(positionSec) ? positionSec : current,
+        rate,
+        serverTimeMs: nowServerMs,
+      });
       void (async () => {
         const { error } = await supabase.from("session_playback").update({
           is_playing: isPlayingNow,
@@ -960,6 +1071,53 @@ const WatchRoom = () => {
           <div className="flex items-center gap-3">
             {/* Theme Toggle */}
             <ThemeToggle />
+
+            {isHost && (
+              <Popover open={watchMoreOpen} onOpenChange={setWatchMoreOpen}>
+                <PopoverTrigger asChild>
+                  <button
+                    type="button"
+                    className="glass-panel-subtle px-3 py-2 rounded-lg transition-smooth hover:bg-muted inline-flex items-center gap-2 text-sm"
+                    title="Switch to a new YouTube link"
+                  >
+                    <Plus className="w-4 h-4" />
+                    Watch more
+                  </button>
+                </PopoverTrigger>
+                <PopoverContent align="end" className="w-80 p-4">
+                  <div className="space-y-3">
+                    <div className="text-sm font-medium">Watch more</div>
+                    <div className="text-xs text-muted-foreground">Paste a YouTube link to switch this room to a new video.</div>
+                    <GlassInput
+                      icon={<Link2 className="w-4 h-4" />}
+                      placeholder="https://youtube.com/watch?v=..."
+                      value={watchMoreUrl}
+                      onChange={(e) => setWatchMoreUrl(e.target.value)}
+                      onKeyDown={(e) => {
+                        if (e.key === "Enter") {
+                          e.preventDefault();
+                          handleWatchMore();
+                        }
+                      }}
+                    />
+                    <GlassButton
+                      className="w-full"
+                      onClick={handleWatchMore}
+                      disabled={!watchMoreUrl.trim() || isSwitchingVideo}
+                    >
+                      {isSwitchingVideo ? (
+                        <>
+                          <Loader2 className="w-4 h-4 animate-spin" />
+                          Switching…
+                        </>
+                      ) : (
+                        "Switch video"
+                      )}
+                    </GlassButton>
+                  </div>
+                </PopoverContent>
+              </Popover>
+            )}
 
             {isHost && (
               <button
@@ -1185,38 +1343,67 @@ const WatchRoom = () => {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4 space-y-4">
-        {messages.map((msg) => {
+      <div className="flex-1 overflow-y-auto p-4">
+        {messages.map((msg, idx) => {
           const isMine = msg.userId === user?.id;
           const avatarUrl = avatarByUserId.get(msg.userId) || null;
+
+          const prev = idx > 0 ? messages[idx - 1] : null;
+          const next = idx < messages.length - 1 ? messages[idx + 1] : null;
+
+          const isFirstInCluster = !prev || prev.userId !== msg.userId;
+          const isLastInCluster = !next || next.userId !== msg.userId;
+
+          const showIdentity = isFirstInCluster;
+          const topGap = idx === 0 ? "" : (isFirstInCluster ? "mt-4" : "mt-1");
+
+          const bubbleShape = isMine
+            ? cn(
+              isFirstInCluster ? "rounded-tr-sm" : "rounded-tr-xl",
+              isLastInCluster ? "rounded-br-sm" : "rounded-br-xl",
+            )
+            : cn(
+              isFirstInCluster ? "rounded-tl-sm" : "rounded-tl-xl",
+              isLastInCluster ? "rounded-bl-sm" : "rounded-bl-xl",
+            );
+
+          const sideInset = isMine ? "mr-8" : "ml-8";
 
           return (
             <div
               key={msg.id}
-              className={cn("animate-slide-in-right", isMine && "flex flex-col items-end")}
+              className={cn(topGap, "animate-slide-in-right", isMine && "flex flex-col items-end")}
             >
-              <div className={cn("flex items-center gap-2 mb-1 w-full", isMine ? "justify-end" : "justify-start")}>
-                <div
-                  className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-[10px] font-semibold"
-                  style={{ backgroundColor: msg.color }}
-                  title={msg.user}
-                >
-                  {avatarUrl ? (
-                    <img
-                      src={avatarUrl}
-                      alt={msg.user}
-                      className="w-full h-full object-cover"
-                      referrerPolicy="no-referrer"
-                    />
-                  ) : (
-                    <span>{initialsFor(msg.user)}</span>
-                  )}
+              {showIdentity && (
+                <div className={cn("flex items-center gap-2 mb-1 w-full", isMine ? "justify-end" : "justify-start")}>
+                  <div
+                    className="w-6 h-6 rounded-full overflow-hidden flex items-center justify-center text-[10px] font-semibold"
+                    style={{ backgroundColor: msg.color }}
+                    title={msg.user}
+                  >
+                    {avatarUrl ? (
+                      <img
+                        src={avatarUrl}
+                        alt={msg.user}
+                        className="w-full h-full object-cover"
+                        referrerPolicy="no-referrer"
+                      />
+                    ) : (
+                      <span>{initialsFor(msg.user)}</span>
+                    )}
+                  </div>
+                  <span className="text-xs text-muted-foreground">{msg.timestamp}</span>
                 </div>
-                <span className="text-xs text-muted-foreground">{msg.timestamp}</span>
-              </div>
+              )}
+
+              {!showIdentity && (
+                <div className={cn("w-full flex mb-1", isMine ? "justify-end" : "justify-start")}>
+                  <div className={cn("w-6", !isMine && "ml-0")} />
+                </div>
+              )}
 
               <div className={cn("w-full flex", isMine ? "justify-end" : "justify-start")}>
-                <div className={cn("relative max-w-[70%]", isMine ? "mr-8" : "ml-8")}>
+                <div className={cn("relative max-w-[70%]", sideInset)}>
                   <button
                     type="button"
                     onClick={() => setReplyTo(msg)}
@@ -1230,12 +1417,7 @@ const WatchRoom = () => {
                     <Reply className="w-4 h-4" />
                   </button>
 
-                  <div
-                    className={cn(
-                      "glass-panel-subtle px-3 py-2 rounded-xl w-fit max-w-full",
-                      isMine ? "rounded-tr-sm" : "rounded-tl-sm"
-                    )}
-                  >
+                  <div className={cn("glass-panel-subtle px-3 py-2 rounded-xl w-fit max-w-full", bubbleShape)}>
                     {msg.replyTo && (
                       <div className="mb-2 px-2 py-1 rounded-lg bg-black/10 dark:bg-white/5 border border-white/10">
                         <div className="text-xs font-medium text-muted-foreground">Replying to {msg.replyTo.user}</div>
@@ -1368,21 +1550,24 @@ const WatchRoom = () => {
 
   return (
     <div className="h-screen bg-background overflow-hidden">
-      {showChat ? (
-        <ResizablePanelGroup direction="horizontal" className="h-full">
-          <ResizablePanel defaultSize={72} minSize={50}>
-            {videoArea}
-          </ResizablePanel>
-
-          <ResizableHandle withHandle />
-
-          <ResizablePanel defaultSize={28} minSize={18} maxSize={45}>
-            {chatPanel}
-          </ResizablePanel>
-        </ResizablePanelGroup>
-      ) : (
-        videoArea
-      )}
+      <div
+        className="h-full grid"
+        style={{
+          gridTemplateColumns: showChat ? "1fr minmax(320px, 420px)" : "1fr 0px",
+        }}
+      >
+        <div className="min-w-0 h-full">
+          {videoArea}
+        </div>
+        <div
+          className={cn(
+            "h-full overflow-hidden transition-opacity duration-200",
+            showChat ? "opacity-100" : "opacity-0 pointer-events-none"
+          )}
+        >
+          {chatPanel}
+        </div>
+      </div>
     </div>
   );
 };
