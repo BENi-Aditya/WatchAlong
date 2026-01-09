@@ -41,7 +41,7 @@ const Index = () => {
             <div className="w-10 h-10 rounded-xl bg-primary flex items-center justify-center glow-pink">
               <Play className="w-5 h-5 text-primary-foreground fill-current" />
             </div>
-            <span className="text-xl font-semibold tracking-tight">SyncWatch</span>
+            <span className="text-xl font-semibold tracking-tight">Watch-Along</span>
           </div>
           <div className="flex items-center gap-4">
             <ThemeToggle />
@@ -74,26 +74,26 @@ const Index = () => {
       </nav>
 
       {/* Hero Section */}
-      <main className="relative z-10 px-6 pt-12 pb-24">
+      <main className="relative z-10 px-6 pt-16 pb-28 md:pt-20 md:pb-36">
         <div className="max-w-7xl mx-auto">
           {/* Hero Content */}
           <div className="text-center max-w-3xl mx-auto mb-16 animate-fade-in">
             <div className="inline-flex items-center gap-2 glass-panel-subtle px-4 py-2 rounded-full mb-8">
               <span className="w-2 h-2 bg-green-400 rounded-full pulse-glow" />
-              <span className="text-sm text-muted-foreground">Perfect sync, every time</span>
+              <span className="text-sm text-muted-foreground">Same video. Same moment.</span>
             </div>
             
-            <h1 className="text-5xl md:text-7xl font-bold mb-6 leading-tight">
-              Watch Together,{" "}
-              <span className="text-gradient">Truly Together</span>
+            <h1 className="text-4xl md:text-6xl lg:text-7xl font-bold mb-6 leading-tight">
+              Press play.{" "}
+              <span className="text-gradient">Everyone’s already there.</span>
             </h1>
             
-            <p className="text-xl text-muted-foreground mb-12 max-w-2xl mx-auto">
-              No ads. No drift. No "wait, pause." Server-authoritative playback keeps everyone perfectly synchronized, down to the millisecond.
+            <p className="text-lg md:text-xl text-muted-foreground mb-10 max-w-2xl mx-auto">
+              Open Watch-Along, paste a YouTube link, share a code, and you’re watching together in seconds. No installs, no awkward "pause, wait" moments.
             </p>
 
             {/* Action Buttons */}
-            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-8">
+            <div className="flex flex-col sm:flex-row items-center justify-center gap-4 mb-4">
               <GlassButton size="lg" onClick={handleCreateSession}>
                 <Play className="w-5 h-5" />
                 Start a Session
@@ -103,39 +103,89 @@ const Index = () => {
                 Join with Code
               </GlassButton>
             </div>
+            <div className="text-sm text-muted-foreground">
+              Join from any device, it’s all on the web.
+            </div>
           </div>
 
           {/* Hero Image */}
-          <div className="relative max-w-4xl mx-auto mb-24 animate-scale-in" style={{ animationDelay: "0.2s" }}>
-            <GlassCard className="p-2 overflow-hidden">
-              <img 
-                src={heroBg} 
-                alt="SyncWatch experience" 
-                className="w-full h-auto rounded-xl"
-              />
-              <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent rounded-xl" />
-              
-              {/* Floating UI Preview */}
-              <div className="absolute bottom-8 left-8 right-8">
-                <GlassCard variant="subtle" className="p-4 flex items-center gap-4">
-                  <div className="flex -space-x-2">
-                    {[1, 2, 3].map((i) => (
-                      <div 
-                        key={i} 
-                        className="w-8 h-8 rounded-full bg-pink-300 border-2 border-background flex items-center justify-center text-xs font-medium"
-                        style={{ backgroundColor: i === 1 ? '#FFB3C6' : i === 2 ? '#FFD166' : '#FFB3C6' }}
-                      >
-                        {String.fromCharCode(64 + i)}
+          <div className="relative max-w-6xl mx-auto mb-28 animate-scale-in" style={{ animationDelay: "0.2s" }}>
+            <GlassCard className="p-6 overflow-hidden">
+              <div className="relative">
+                <div className="absolute -inset-10 rounded-[32px] blur-3xl opacity-30 dark:opacity-25 bg-gradient-to-r from-pink-500/20 via-yellow-500/15 to-pink-500/20" />
+                <div className="absolute inset-0 bg-gradient-to-t from-background/80 via-transparent to-transparent rounded-xl" />
+
+                <div className="relative h-[460px] md:h-[520px] lg:h-[580px]">
+                  {/* Laptop */}
+                  <div className="absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-[52%] w-[96%] md:w-[78%]">
+                    <div className="rounded-2xl border border-white/10 bg-black/20 backdrop-blur-sm p-3 shadow-2xl">
+                      <div className="rounded-xl overflow-hidden bg-black/80">
+                        <div className="relative aspect-video">
+                          <img src={heroBg} alt="Same video, same moment" className="absolute inset-0 w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
+                          <div className="absolute bottom-3 left-3 right-3">
+                            <div className="flex items-center gap-3">
+                              <div className="flex -space-x-2">
+                                {["A", "B", "C"].map((ch, i) => (
+                                  <div
+                                    key={ch}
+                                    className="w-8 h-8 rounded-full border-2 border-black/40 flex items-center justify-center text-xs font-medium"
+                                    style={{ backgroundColor: i === 1 ? "#FFD166" : "#FFB3C6" }}
+                                    title={i === 0 ? "Laptop" : i === 1 ? "Tablet" : "Phone"}
+                                  >
+                                    {ch}
+                                  </div>
+                                ))}
+                              </div>
+                              <div className="flex-1">
+                                <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
+                                  <div className="h-full w-2/3 bg-primary rounded-full" />
+                                </div>
+                              </div>
+                              <span className="text-xs md:text-sm text-white/80">12:34 / 18:52</span>
+                            </div>
+                          </div>
+                        </div>
                       </div>
-                    ))}
-                  </div>
-                  <div className="flex-1">
-                    <div className="h-1.5 bg-pink-200 rounded-full overflow-hidden">
-                      <div className="h-full w-2/3 bg-primary rounded-full" />
                     </div>
                   </div>
-                  <span className="text-sm text-muted-foreground">12:34 / 18:52</span>
-                </GlassCard>
+
+                  {/* Tablet */}
+                  <div className="absolute left-3 md:left-8 top-10 md:top-14 w-48 md:w-60 rotate-[-6deg]">
+                    <div className="rounded-3xl border border-white/10 bg-black/20 backdrop-blur-sm p-3 shadow-xl">
+                      <div className="rounded-2xl overflow-hidden bg-black/80">
+                        <div className="relative aspect-[3/4]">
+                          <img src={heroBg} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
+                          <div className="absolute bottom-3 left-3 right-3">
+                            <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
+                              <div className="h-full w-2/3 bg-primary rounded-full" />
+                            </div>
+                            <div className="mt-2 text-[11px] text-white/80">12:34 / 18:52</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+
+                  {/* Phone */}
+                  <div className="absolute right-3 md:right-8 top-20 md:top-24 w-36 md:w-44 rotate-[8deg]">
+                    <div className="rounded-[28px] border border-white/10 bg-black/20 backdrop-blur-sm p-3 shadow-xl">
+                      <div className="rounded-[22px] overflow-hidden bg-black/80">
+                        <div className="relative aspect-[9/19]">
+                          <img src={heroBg} alt="" className="absolute inset-0 w-full h-full object-cover" />
+                          <div className="absolute inset-0 bg-gradient-to-t from-black/55 via-transparent to-transparent" />
+                          <div className="absolute bottom-3 left-3 right-3">
+                            <div className="h-1.5 bg-white/15 rounded-full overflow-hidden">
+                              <div className="h-full w-2/3 bg-primary rounded-full" />
+                            </div>
+                            <div className="mt-2 text-[11px] text-white/80">12:34 / 18:52</div>
+                          </div>
+                        </div>
+                      </div>
+                    </div>
+                  </div>
+                </div>
               </div>
             </GlassCard>
           </div>
@@ -145,22 +195,22 @@ const Index = () => {
             {[
               {
                 icon: <Zap className="w-6 h-6" />,
-                title: "Zero Drift",
-                description: "Server-controlled playback ensures everyone sees the same frame at the same time.",
+                title: "Same moment",
+                description: "Everyone stays on the same timestamp — no drifting apart mid-scene.",
                 bgColor: "bg-pink-100 dark:bg-pink-500/20",
                 iconColor: "text-pink-600 dark:text-pink-400",
               },
               {
                 icon: <Users className="w-6 h-6" />,
-                title: "Instant Sync",
-                description: "Late joiners are immediately synced to the current timestamp. No awkward catches up.",
+                title: "Catch up instantly",
+                description: "Late joiners jump right to where everyone is — no “wait, pause” messages.",
                 bgColor: "bg-yellow-100 dark:bg-yellow-500/20",
                 iconColor: "text-yellow-600 dark:text-yellow-400",
               },
               {
                 icon: <Play className="w-6 h-6" />,
-                title: "Ad-Free",
-                description: "Direct stream ingestion means no ads, no interruptions, no divergence.",
+                title: "No interruptions",
+                description: "Just the video and your friends — keep the vibe, keep the moment.",
                 bgColor: "bg-pink-100 dark:bg-pink-500/20",
                 iconColor: "text-pink-600 dark:text-pink-400",
               },
@@ -211,7 +261,7 @@ const Index = () => {
       {/* Footer */}
       <footer className="relative z-10 px-6 py-8 border-t border-border/50">
         <div className="max-w-7xl mx-auto text-center text-sm text-muted-foreground">
-          <p>SyncWatch — Watch together, truly together.</p>
+          <p>Watch-Along — press play, everyone’s already there.</p>
         </div>
       </footer>
     </div>
