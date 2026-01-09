@@ -262,4 +262,14 @@
   .transition-smooth {
     @apply transition-all duration-300 ease-out;
   }
+
+  /* Hide native scrollbars but keep scroll behavior */
+  .scrollbar-hidden {
+    -ms-overflow-style: none; /* IE and Edge */
+    scrollbar-width: none; /* Firefox */
+  }
+
+  .scrollbar-hidden::-webkit-scrollbar {
+    display: none; /* Chrome, Safari, Opera */
+  }
 }

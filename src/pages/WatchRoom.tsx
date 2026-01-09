@@ -1343,7 +1343,7 @@ const WatchRoom = () => {
       </div>
 
       {/* Messages */}
-      <div className="flex-1 overflow-y-auto p-4">
+      <div className="flex-1 overflow-y-auto p-4 scrollbar-hidden">
         {messages.map((msg, idx) => {
           const isMine = msg.userId === user?.id;
           const avatarUrl = avatarByUserId.get(msg.userId) || null;
