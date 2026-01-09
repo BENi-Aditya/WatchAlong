@@ -4,6 +4,7 @@ import {
   Play, 
   Pause, 
   Plus,
+  ListVideo,
   Volume2, 
   VolumeX, 
   Link2,
@@ -93,7 +94,9 @@ const WatchRoom = () => {
   const [replyColumnsReady, setReplyColumnsReady] = useState(true);
   const [copied, setCopied] = useState(false);
   const [watchMoreOpen, setWatchMoreOpen] = useState(false);
+  const [watchMoreMode, setWatchMoreMode] = useState<"video" | "playlist">("video");
   const [watchMoreUrl, setWatchMoreUrl] = useState("");
+  const [watchMorePlaylistUrl, setWatchMorePlaylistUrl] = useState("");
   const [isSwitchingVideo, setIsSwitchingVideo] = useState(false);
   const [showControls, setShowControls] = useState(true);
   const [interactionRequired, setInteractionRequired] = useState(false);
@@ -107,6 +110,11 @@ const WatchRoom = () => {
   const [resolvedSessionId, setResolvedSessionId] = useState<string | null>(null);
   const [joinCode, setJoinCode] = useState<string | null>(null);
   const [youtubeId, setYoutubeId] = useState<string | null>(null);
+  const [playlistId, setPlaylistId] = useState<string | null>(null);
+  const [playlistIndex, setPlaylistIndex] = useState<number>(0);
+  const [playlistVideoIds, setPlaylistVideoIds] = useState<string[]>([]);
+  const [playlistPanelOpen, setPlaylistPanelOpen] = useState(false);
+  const [playlistMetaById, setPlaylistMetaById] = useState<Record<string, { title?: string }>>({});
   const [presence, setPresence] = useState<Presence[]>([]);
   const [hostUserId, setHostUserId] = useState<string | null>(null);
   const [playback, setPlayback] = useState<PlaybackState | null>(null);
@@ -128,6 +136,14 @@ const WatchRoom = () => {
   const userGestureRef = useRef(false);
   const pendingCommandRef = useRef<PendingCommand | null>(null);
   const hostUserIdRef = useRef<string | null>(null);
+  const userIdRef = useRef<string | null>(null);
+  const resolvedSessionIdRef = useRef<string | null>(null);
+  const playlistIdRef = useRef<string | null>(null);
+  const playlistIndexRef = useRef<number>(0);
+  const playlistVideoIdsRef = useRef<string[]>([]);
+  const playlistMetaByIdRef = useRef<Record<string, { title?: string }>>({});
+  const autoAdvanceLockRef = useRef<number>(0);
+  const autoAdvanceFromVideoIdRef = useRef<string | null>(null);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [durationSec, setDurationSec] = useState<number>(0);
@@ -175,6 +191,77 @@ const WatchRoom = () => {
   const canControlPlayback = isHost || Boolean(permissions.allowParticipantControl);
   const canSendPlaybackCommands = canControlPlayback && wsConnected && hasSnapshot;
 
+  const activePlaylistIndex = Number.isFinite(playlistIndex) ? playlistIndex : 0;
+  const activePlaylistVideoId = playlistVideoIds[activePlaylistIndex] || null;
+
+  useEffect(() => {
+    resolvedSessionIdRef.current = resolvedSessionId;
+  }, [resolvedSessionId]);
+
+  useEffect(() => {
+    playlistIdRef.current = playlistId;
+  }, [playlistId]);
+
+  useEffect(() => {
+    playlistIndexRef.current = Number.isFinite(playlistIndex) ? playlistIndex : 0;
+  }, [playlistIndex]);
+
+  useEffect(() => {
+    playlistVideoIdsRef.current = Array.isArray(playlistVideoIds) ? playlistVideoIds : [];
+  }, [playlistVideoIds]);
+
+  useEffect(() => {
+    playlistMetaByIdRef.current = playlistMetaById;
+  }, [playlistMetaById]);
+
+  useEffect(() => {
+    if (!playlistVideoIds.length) return;
+
+    let cancelled = false;
+    const ids = playlistVideoIds.slice(0, 50);
+    const existing = playlistMetaByIdRef.current;
+    const missing = ids.filter((id) => !existing[id]?.title);
+    if (!missing.length) return;
+
+    void (async () => {
+      try {
+        const results = await Promise.all(
+          missing.map(async (id) => {
+            try {
+              const res = await fetch(
+                `https://www.youtube.com/oembed?url=${encodeURIComponent(`https://www.youtube.com/watch?v=${id}`)}&format=json`
+              );
+              if (!res.ok) return [id, undefined] as const;
+              const json: any = await res.json();
+              const title = json?.title ? String(json.title) : undefined;
+              return [id, title] as const;
+            } catch {
+              return [id, undefined] as const;
+            }
+          })
+        );
+
+        if (cancelled) return;
+        setPlaylistMetaById((prev) => {
+          let changed = false;
+          const next = { ...prev };
+          for (const [id, title] of results) {
+            if (!title) continue;
+            if (next[id]?.title === title) continue;
+            changed = true;
+            next[id] = { ...(next[id] || {}), title };
+          }
+          return changed ? next : prev;
+        });
+      } catch {
+      }
+    })();
+
+    return () => {
+      cancelled = true;
+    };
+  }, [playlistVideoIds]);
+
   const isTypingTarget = (target: EventTarget | null) => {
     const el = target as HTMLElement | null;
     if (!el) return false;
@@ -202,6 +289,10 @@ const WatchRoom = () => {
   }, [hostUserId]);
 
   useEffect(() => {
+    userIdRef.current = user?.id || null;
+  }, [user?.id]);
+
+  useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages]);
 
@@ -222,7 +313,11 @@ const WatchRoom = () => {
       pendingCommandRef.current = null;
     }
 
-    const target = expectedPositionNow(state);
+    const duration = Number(player.getDuration?.());
+    const rawTarget = expectedPositionNow(state);
+    const target = Number.isFinite(duration) && duration > 0
+      ? Math.max(0, Math.min(duration, rawTarget))
+      : rawTarget;
     const current = Number.isFinite(player.getCurrentTime?.()) ? Number(player.getCurrentTime()) : 0;
     const drift = target - current;
 
@@ -257,6 +352,17 @@ const WatchRoom = () => {
       if (!canRateAdjust) return;
       player.setPlaybackRate?.(rate);
     };
+
+    if (
+      playerState === YTState?.ENDED &&
+      state.isPlaying &&
+      Number.isFinite(duration) &&
+      duration > 0 &&
+      target >= duration - 0.25
+    ) {
+      setRate(1);
+      return;
+    }
 
     const seekThreshold = canRateAdjust ? 0.6 : 1.2;
     const hardSeekThreshold = canRateAdjust ? 2.5 : 4.0;
@@ -308,16 +414,36 @@ const WatchRoom = () => {
 
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(codeRaw);
 
-        const sessionQuery = supabase
-          .from("sessions")
-          .select("id, join_code, youtube_id, host_user_id, allow_participant_control");
+        const baseSelect = "id, join_code, youtube_id, host_user_id, allow_participant_control";
+        const selectWithPlaylist = `${baseSelect}, playlist_id, playlist_index, playlist_video_ids`;
 
-        const { data: sessionRow, error: sessionErr } = await (isUuid
-          ? sessionQuery.eq("id", codeRaw)
-          : sessionQuery.eq("join_code", codeUpper)
+        let sessionRow: any = null;
+        let sessionErr: any = null;
+
+        const firstQuery = supabase.from("sessions").select(selectWithPlaylist);
+        const first = await (isUuid
+          ? firstQuery.eq("id", codeRaw)
+          : firstQuery.eq("join_code", codeUpper)
         ).maybeSingle();
 
-        if (sessionErr) throw new Error(sessionErr.message);
+        sessionRow = first.data;
+        sessionErr = first.error;
+
+        if (sessionErr) {
+          const msg = sessionErr.message || "";
+          const looksLikeMissingPlaylistCols = /playlist_id|playlist_index|playlist_video_ids|schema cache|does not exist/i.test(msg);
+          if (!looksLikeMissingPlaylistCols) throw new Error(sessionErr.message);
+
+          const fallbackQuery = supabase.from("sessions").select(baseSelect);
+          const fallback = await (isUuid
+            ? fallbackQuery.eq("id", codeRaw)
+            : fallbackQuery.eq("join_code", codeUpper)
+          ).maybeSingle();
+
+          if (fallback.error) throw new Error(fallback.error.message);
+          sessionRow = fallback.data;
+        }
+
         if (!sessionRow) throw new Error("Session not found");
 
         setResolvedSessionId(sessionRow.id);
@@ -325,6 +451,25 @@ const WatchRoom = () => {
         setYoutubeId(sessionRow.youtube_id);
         setHostUserId(sessionRow.host_user_id);
         setPermissions({ allowParticipantControl: Boolean(sessionRow.allow_participant_control) });
+
+        const nextPlaylistId = sessionRow.playlist_id ? String(sessionRow.playlist_id) : null;
+        const nextPlaylistIndex = Number(sessionRow.playlist_index || 0);
+        let nextPlaylistVideoIds: string[] = [];
+        const rawIds = sessionRow.playlist_video_ids;
+        if (Array.isArray(rawIds)) {
+          nextPlaylistVideoIds = rawIds.map((v: any) => String(v)).filter(Boolean);
+        } else if (typeof rawIds === "string") {
+          try {
+            const parsed = JSON.parse(rawIds);
+            if (Array.isArray(parsed)) nextPlaylistVideoIds = parsed.map((v: any) => String(v)).filter(Boolean);
+          } catch {
+          }
+        }
+
+        setPlaylistId(nextPlaylistId);
+        setPlaylistIndex(Number.isFinite(nextPlaylistIndex) ? nextPlaylistIndex : 0);
+        setPlaylistVideoIds(nextPlaylistVideoIds);
+        setPlaylistPanelOpen(Boolean(nextPlaylistId));
 
         const { data: playbackRow, error: playbackErr } = await supabase
           .from("session_playback")
@@ -461,9 +606,64 @@ const WatchRoom = () => {
             const st = lastServerStateRef.current;
             if (st) reconcileToServer(st);
           },
-          onStateChange: () => {
+          onStateChange: (event: any) => {
             const d = Number(playerRef.current?.getDuration?.());
             if (Number.isFinite(d) && d > 0) setDurationSec(d);
+
+            const st = Number(event?.data);
+            if (st === window.YT?.PlayerState?.ENDED) {
+              const sid = resolvedSessionIdRef.current;
+              if (!sid) return;
+              const uid = userIdRef.current;
+              if (!uid) return;
+              if (!hostUserIdRef.current || hostUserIdRef.current !== uid) return;
+
+              const pid = playlistIdRef.current;
+              const ids = playlistVideoIdsRef.current;
+              if (!pid || !ids.length) return;
+
+              const fromVideoId = loadedYoutubeIdRef.current;
+              if (fromVideoId && autoAdvanceFromVideoIdRef.current === fromVideoId) return;
+
+              const now = Date.now();
+              if (now - autoAdvanceLockRef.current < 3500) return;
+              autoAdvanceLockRef.current = now;
+
+              const idxFromId = fromVideoId ? ids.indexOf(fromVideoId) : -1;
+              const idx = idxFromId >= 0
+                ? idxFromId
+                : (Number.isFinite(playlistIndexRef.current) ? playlistIndexRef.current : 0);
+              const nextIdx = idx + 1;
+              if (nextIdx >= ids.length) {
+                void (async () => {
+                  const { error } = await supabase
+                    .from("session_playback")
+                    .update({ is_playing: false })
+                    .eq("session_id", sid);
+                  if (error) toast.error(error.message);
+                })();
+                return;
+              }
+
+              const nextId = ids[nextIdx];
+              if (!nextId) return;
+              if (fromVideoId) autoAdvanceFromVideoIdRef.current = fromVideoId;
+              void (async () => {
+                const { error: sessionErr } = await supabase
+                  .from("sessions")
+                  .update({ playlist_index: nextIdx, youtube_id: nextId })
+                  .eq("id", sid);
+                if (sessionErr) {
+                  toast.error(sessionErr.message);
+                  return;
+                }
+                const { error: playbackErr } = await supabase
+                  .from("session_playback")
+                  .update({ is_playing: true, position_sec: 0, rate: 1 })
+                  .eq("session_id", sid);
+                if (playbackErr) toast.error(playbackErr.message);
+              })();
+            }
           },
         },
       });
@@ -492,6 +692,7 @@ const WatchRoom = () => {
     } catch {
     }
     loadedYoutubeIdRef.current = youtubeId;
+    autoAdvanceFromVideoIdRef.current = null;
     setDurationSec(0);
     setProgress(0);
     setIsScrubbing(false);
@@ -687,6 +888,27 @@ const WatchRoom = () => {
         if (row.join_code) setJoinCode(String(row.join_code));
         if (row.youtube_id) setYoutubeId(String(row.youtube_id));
         if (row.host_user_id) setHostUserId(String(row.host_user_id));
+        if (row.playlist_id !== undefined) {
+          const nextId = row.playlist_id ? String(row.playlist_id) : null;
+          setPlaylistId(nextId);
+          setPlaylistPanelOpen(Boolean(nextId));
+        }
+        if (row.playlist_index !== undefined) {
+          const idx = Number(row.playlist_index || 0);
+          setPlaylistIndex(Number.isFinite(idx) ? idx : 0);
+        }
+        if (row.playlist_video_ids !== undefined) {
+          const raw = row.playlist_video_ids;
+          if (Array.isArray(raw)) {
+            setPlaylistVideoIds(raw.map((v: any) => String(v)).filter(Boolean));
+          } else if (typeof raw === "string") {
+            try {
+              const parsed = JSON.parse(raw);
+              if (Array.isArray(parsed)) setPlaylistVideoIds(parsed.map((v: any) => String(v)).filter(Boolean));
+            } catch {
+            }
+          }
+        }
         if (row.allow_participant_control !== undefined) {
           setPermissions({ allowParticipantControl: Boolean(row.allow_participant_control) });
         }
@@ -879,6 +1101,65 @@ const WatchRoom = () => {
     return null;
   };
 
+  const extractPlaylistId = (url: string) => {
+    const raw = String(url || "").trim();
+    if (!raw) return null;
+    try {
+      const u = new URL(raw);
+      const list = u.searchParams.get("list");
+      return list ? String(list).trim() : null;
+    } catch {
+      const m = raw.match(/[?&]list=([^&]+)/i);
+      return m?.[1] ? String(m[1]).trim() : null;
+    }
+  };
+
+  const readPlaylistFromPlayer = async (id: string) => {
+    const player = playerRef.current;
+    if (!player || !playerReadyRef.current) return null;
+
+    const restoreVideoId = loadedYoutubeIdRef.current || youtubeId;
+    const restoreTime = Number(player.getCurrentTime?.()) || 0;
+    const restoreState = Number(player.getPlayerState?.());
+    const restoreWasPlaying = restoreState === window.YT?.PlayerState?.PLAYING;
+
+    const restore = () => {
+      try {
+        if (restoreVideoId) {
+          player.loadVideoById?.(restoreVideoId, Math.max(0, restoreTime));
+          if (!restoreWasPlaying) player.pauseVideo?.();
+        }
+      } catch {
+      }
+    };
+
+    try {
+      player.cuePlaylist?.({ listType: "playlist", list: id, index: 0, startSeconds: 0 });
+    } catch {
+      try {
+        player.cuePlaylist?.(id);
+      } catch {
+      }
+    }
+
+    const deadline = Date.now() + 2500;
+    while (Date.now() < deadline) {
+      try {
+        const ids: any = player.getPlaylist?.();
+        if (Array.isArray(ids) && ids.length > 0) {
+          const cleaned = ids.map((v) => String(v)).filter(Boolean);
+          restore();
+          return cleaned;
+        }
+      } catch {
+      }
+      await new Promise((r) => setTimeout(r, 200));
+    }
+
+    restore();
+    return null;
+  };
+
   const handleWatchMore = () => {
     if (!isHost) return;
     if (!resolvedSessionId) return;
@@ -891,14 +1172,71 @@ const WatchRoom = () => {
       return;
     }
 
+    const playlistFromVideoUrl = extractPlaylistId(urlTrim);
+    const canAttemptPlaylist = Boolean(playlistFromVideoUrl && playerRef.current && playerReadyRef.current);
+
     setIsSwitchingVideo(true);
     void (async () => {
       try {
-        const { error: sessionErr } = await supabase
-          .from("sessions")
-          .update({ youtube_url: urlTrim, youtube_id: nextYoutubeId })
-          .eq("id", resolvedSessionId);
-        if (sessionErr) throw new Error(sessionErr.message);
+        if (canAttemptPlaylist && playlistFromVideoUrl) {
+          const ids = await readPlaylistFromPlayer(playlistFromVideoUrl);
+          if (ids && ids.length > 0) {
+            const idx = ids.indexOf(nextYoutubeId);
+            const startIdx = idx >= 0 ? idx : 0;
+            const startId = ids[startIdx] || ids[0];
+
+            const player = playerRef.current;
+            if (player && playerReadyRef.current && startId) {
+              try {
+                player.loadVideoById?.(startId, 0);
+                loadedYoutubeIdRef.current = startId;
+              } catch {
+              }
+            }
+
+            const { error: sessionErr } = await supabase
+              .from("sessions")
+              .update({
+                youtube_url: urlTrim,
+                youtube_id: startId,
+                playlist_id: playlistFromVideoUrl,
+                playlist_index: startIdx,
+                playlist_video_ids: ids,
+              })
+              .eq("id", resolvedSessionId);
+
+            if (sessionErr) {
+              const msg = sessionErr.message || "";
+              const looksLikeMissingPlaylistCols = /playlist_id|playlist_index|playlist_video_ids|schema cache|does not exist/i.test(msg);
+              if (!looksLikeMissingPlaylistCols) throw new Error(sessionErr.message);
+              toast.error("Playlist support needs a small Supabase schema update");
+            } else {
+              setPlaylistPanelOpen(true);
+            }
+          } else {
+            const { error: sessionErr } = await supabase
+              .from("sessions")
+              .update({ youtube_url: urlTrim, youtube_id: nextYoutubeId })
+              .eq("id", resolvedSessionId);
+            if (sessionErr) throw new Error(sessionErr.message);
+          }
+        } else {
+          const { error: sessionErr } = await supabase
+            .from("sessions")
+            .update({ youtube_url: urlTrim, youtube_id: nextYoutubeId })
+            .eq("id", resolvedSessionId);
+          if (sessionErr) throw new Error(sessionErr.message);
+
+          const clearAttempt = await supabase
+            .from("sessions")
+            .update({ playlist_id: null, playlist_index: 0, playlist_video_ids: [] })
+            .eq("id", resolvedSessionId);
+          if (clearAttempt.error) {
+            const msg = clearAttempt.error.message || "";
+            const looksLikeMissingPlaylistCols = /playlist_id|playlist_index|playlist_video_ids|schema cache|does not exist/i.test(msg);
+            if (!looksLikeMissingPlaylistCols) throw new Error(clearAttempt.error.message);
+          }
+        }
 
         const { error: playbackErr } = await supabase
           .from("session_playback")
@@ -908,10 +1246,109 @@ const WatchRoom = () => {
 
         setWatchMoreUrl("");
         setWatchMoreOpen(false);
-        toast.success("Switched video");
+        toast.success("Updated playback");
       } catch (e) {
         const message = e instanceof Error ? e.message : "Failed to switch video";
         toast.error(message);
+      } finally {
+        setIsSwitchingVideo(false);
+      }
+    })();
+  };
+
+  const jumpToPlaylistIndex = (idx: number) => {
+    const sid = resolvedSessionIdRef.current;
+    if (!sid) return;
+
+    if (!canControlPlayback) {
+      toast.error("Playback controls are locked by the host");
+      return;
+    }
+
+    const ids = playlistVideoIdsRef.current;
+    if (!ids.length) return;
+    const nextIdx = Math.max(0, Math.min(ids.length - 1, idx));
+    const nextId = ids[nextIdx];
+    if (!nextId) return;
+
+    void (async () => {
+      const { error: sessionErr } = await supabase
+        .from("sessions")
+        .update({ playlist_index: nextIdx, youtube_id: nextId })
+        .eq("id", sid);
+      if (sessionErr) {
+        toast.error(sessionErr.message);
+        return;
+      }
+      const { error: playbackErr } = await supabase
+        .from("session_playback")
+        .update({ is_playing: true, position_sec: 0, rate: 1 })
+        .eq("session_id", sid);
+      if (playbackErr) toast.error(playbackErr.message);
+    })();
+  };
+
+  const handleAddPlaylist = () => {
+    if (!isHost) return;
+    if (!resolvedSessionId) return;
+    if (!watchMorePlaylistUrl.trim()) return;
+
+    const urlTrim = watchMorePlaylistUrl.trim();
+    const nextPlaylistId = extractPlaylistId(urlTrim);
+    if (!nextPlaylistId) {
+      toast.error("Invalid playlist link");
+      return;
+    }
+
+    if (!playerRef.current || !playerReadyRef.current) {
+      toast.error("Video is still loading. Try again in a moment.");
+      return;
+    }
+
+    setIsSwitchingVideo(true);
+    void (async () => {
+      try {
+        const ids = await readPlaylistFromPlayer(nextPlaylistId);
+        if (!ids || ids.length === 0) throw new Error("Could not load playlist");
+
+        const player = playerRef.current;
+        if (player && playerReadyRef.current && ids[0]) {
+          try {
+            player.loadVideoById?.(ids[0], 0);
+            loadedYoutubeIdRef.current = ids[0];
+          } catch {
+          }
+        }
+
+        const { error: sessionErr } = await supabase
+          .from("sessions")
+          .update({
+            youtube_url: urlTrim,
+            youtube_id: ids[0],
+            playlist_id: nextPlaylistId,
+            playlist_index: 0,
+            playlist_video_ids: ids,
+          })
+          .eq("id", resolvedSessionId);
+        if (sessionErr) throw new Error(sessionErr.message);
+
+        const { error: playbackErr } = await supabase
+          .from("session_playback")
+          .update({ is_playing: true, position_sec: 0, rate: 1 })
+          .eq("session_id", resolvedSessionId);
+        if (playbackErr) throw new Error(playbackErr.message);
+
+        setWatchMorePlaylistUrl("");
+        setWatchMoreOpen(false);
+        setPlaylistPanelOpen(true);
+        toast.success("Playlist started");
+      } catch (e) {
+        const message = e instanceof Error ? e.message : "Failed to start playlist";
+        if (/playlist_id|playlist_index|playlist_video_ids/i.test(message)) {
+          toast.error("Playlist support needs a small Supabase schema update");
+        } else {
+          toast.error(message);
+        }
       } finally {
         setIsSwitchingVideo(false);
       }
@@ -979,6 +1416,15 @@ const WatchRoom = () => {
         rate,
         serverTimeMs: nowServerMs,
       });
+
+      const player = playerRef.current;
+      if (player && playerReadyRef.current) {
+        try {
+          player.seekTo?.(Number.isFinite(positionSec) ? positionSec : current, true);
+        } catch {
+        }
+      }
+
       void (async () => {
         const { error } = await supabase.from("session_playback").update({
           is_playing: isPlayingNow,
@@ -1072,13 +1518,28 @@ const WatchRoom = () => {
             {/* Theme Toggle */}
             <ThemeToggle />
 
+            {playlistId && (
+              <button
+                type="button"
+                className={cn(
+                  "glass-panel-subtle px-3 py-2 rounded-lg transition-smooth hover:bg-muted inline-flex items-center gap-2 text-sm",
+                  playlistPanelOpen && "bg-muted/40"
+                )}
+                title={playlistPanelOpen ? "Hide playlist" : "Show playlist"}
+                onClick={() => setPlaylistPanelOpen((v) => !v)}
+              >
+                <ListVideo className="w-4 h-4" />
+                Playlist
+              </button>
+            )}
+
             {isHost && (
               <Popover open={watchMoreOpen} onOpenChange={setWatchMoreOpen}>
                 <PopoverTrigger asChild>
                   <button
                     type="button"
                     className="glass-panel-subtle px-3 py-2 rounded-lg transition-smooth hover:bg-muted inline-flex items-center gap-2 text-sm"
-                    title="Switch to a new YouTube link"
+                    title="Switch video or playlist"
                   >
                     <Plus className="w-4 h-4" />
                     Watch more
@@ -1087,33 +1548,90 @@ const WatchRoom = () => {
                 <PopoverContent align="end" className="w-80 p-4">
                   <div className="space-y-3">
                     <div className="text-sm font-medium">Watch more</div>
-                    <div className="text-xs text-muted-foreground">Paste a YouTube link to switch this room to a new video.</div>
-                    <GlassInput
-                      icon={<Link2 className="w-4 h-4" />}
-                      placeholder="https://youtube.com/watch?v=..."
-                      value={watchMoreUrl}
-                      onChange={(e) => setWatchMoreUrl(e.target.value)}
-                      onKeyDown={(e) => {
-                        if (e.key === "Enter") {
-                          e.preventDefault();
-                          handleWatchMore();
-                        }
-                      }}
-                    />
-                    <GlassButton
-                      className="w-full"
-                      onClick={handleWatchMore}
-                      disabled={!watchMoreUrl.trim() || isSwitchingVideo}
-                    >
-                      {isSwitchingVideo ? (
-                        <>
-                          <Loader2 className="w-4 h-4 animate-spin" />
-                          Switching…
-                        </>
-                      ) : (
-                        "Switch video"
-                      )}
-                    </GlassButton>
+                    <div className="grid grid-cols-2 gap-2">
+                      <button
+                        type="button"
+                        className={cn(
+                          "px-3 py-2 rounded-lg text-sm transition-smooth",
+                          watchMoreMode === "video" ? "glass-panel-subtle" : "hover:bg-muted"
+                        )}
+                        onClick={() => setWatchMoreMode("video")}
+                      >
+                        Video
+                      </button>
+                      <button
+                        type="button"
+                        className={cn(
+                          "px-3 py-2 rounded-lg text-sm transition-smooth",
+                          watchMoreMode === "playlist" ? "glass-panel-subtle" : "hover:bg-muted"
+                        )}
+                        onClick={() => setWatchMoreMode("playlist")}
+                      >
+                        Playlist
+                      </button>
+                    </div>
+
+                    {watchMoreMode === "video" ? (
+                      <>
+                        <div className="text-xs text-muted-foreground">Paste a YouTube link to switch this room to a new video.</div>
+                        <GlassInput
+                          icon={<Link2 className="w-4 h-4" />}
+                          placeholder="https://youtube.com/watch?v=..."
+                          value={watchMoreUrl}
+                          onChange={(e) => setWatchMoreUrl(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleWatchMore();
+                            }
+                          }}
+                        />
+                        <GlassButton
+                          className="w-full"
+                          onClick={handleWatchMore}
+                          disabled={!watchMoreUrl.trim() || isSwitchingVideo}
+                        >
+                          {isSwitchingVideo ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Switching…
+                            </>
+                          ) : (
+                            "Switch video"
+                          )}
+                        </GlassButton>
+                      </>
+                    ) : (
+                      <>
+                        <div className="text-xs text-muted-foreground">Paste a playlist link to autoplay videos one by one.</div>
+                        <GlassInput
+                          icon={<ListVideo className="w-4 h-4" />}
+                          placeholder="https://youtube.com/playlist?list=..."
+                          value={watchMorePlaylistUrl}
+                          onChange={(e) => setWatchMorePlaylistUrl(e.target.value)}
+                          onKeyDown={(e) => {
+                            if (e.key === "Enter") {
+                              e.preventDefault();
+                              handleAddPlaylist();
+                            }
+                          }}
+                        />
+                        <GlassButton
+                          className="w-full"
+                          onClick={handleAddPlaylist}
+                          disabled={!watchMorePlaylistUrl.trim() || isSwitchingVideo}
+                        >
+                          {isSwitchingVideo ? (
+                            <>
+                              <Loader2 className="w-4 h-4 animate-spin" />
+                              Starting…
+                            </>
+                          ) : (
+                            "Start playlist"
+                          )}
+                        </GlassButton>
+                      </>
+                    )}
                   </div>
                 </PopoverContent>
               </Popover>
@@ -1193,6 +1711,77 @@ const WatchRoom = () => {
             </div>
           </div>
         </div>
+
+        {playlistId && (
+          <div
+            className={cn(
+              "absolute right-6 top-24 bottom-24 w-80 z-30 transition-all duration-200",
+              playlistPanelOpen ? "opacity-100 translate-x-0" : "opacity-0 translate-x-6 pointer-events-none"
+            )}
+          >
+            <div className="h-full glass-panel border border-white/10 rounded-2xl overflow-hidden flex flex-col">
+              <div className="p-3 border-b border-border/60 flex items-center justify-between">
+                <div className="flex items-center gap-2 min-w-0">
+                  <ListVideo className="w-4 h-4 text-primary shrink-0" />
+                  <div className="text-sm font-medium truncate">Playlist</div>
+                  {playlistVideoIds.length > 0 && (
+                    <div className="text-xs text-muted-foreground shrink-0">{activePlaylistIndex + 1}/{playlistVideoIds.length}</div>
+                  )}
+                </div>
+                <button
+                  type="button"
+                  className="p-1 rounded hover:bg-muted transition-smooth"
+                  onClick={() => setPlaylistPanelOpen(false)}
+                  title="Hide"
+                >
+                  <X className="w-4 h-4" />
+                </button>
+              </div>
+
+              <div className="flex-1 overflow-y-auto scrollbar-hidden p-2 space-y-2">
+                {playlistVideoIds.map((id, idx) => {
+                  const isActive = idx === activePlaylistIndex;
+                  const title = playlistMetaById[id]?.title;
+                  const thumb = `https://i.ytimg.com/vi/${id}/mqdefault.jpg`;
+                  return (
+                    <button
+                      key={`${id}-${idx}`}
+                      type="button"
+                      className={cn(
+                        "w-full text-left rounded-xl transition-smooth flex gap-3 p-2",
+                        isActive ? "bg-primary/15 border border-primary/30" : "hover:bg-muted/40 border border-transparent"
+                      )}
+                      onClick={() => jumpToPlaylistIndex(idx)}
+                    >
+                      <div className="w-24 shrink-0">
+                        <div className="rounded-lg overflow-hidden bg-black/40 border border-white/10 aspect-video">
+                          <img
+                            src={thumb}
+                            alt=""
+                            className="w-full h-full object-cover"
+                            loading="lazy"
+                            referrerPolicy="no-referrer"
+                          />
+                        </div>
+                      </div>
+                      <div className="min-w-0 flex-1">
+                        <div className={cn("text-sm font-medium truncate", isActive && "text-primary")}
+                          title={title || undefined}
+                        >
+                          {title || `Video ${idx + 1}`}
+                        </div>
+                        <div className="mt-1 text-xs text-muted-foreground flex items-center gap-2">
+                          <span>#{idx + 1}</span>
+                          {id === activePlaylistVideoId && <span>Now playing</span>}
+                        </div>
+                      </div>
+                    </button>
+                  );
+                })}
+              </div>
+            </div>
+          </div>
+        )}
 
         {/* Center Play/Pause */}
         <button

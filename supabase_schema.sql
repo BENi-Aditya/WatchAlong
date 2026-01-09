@@ -17,6 +17,10 @@ create table if not exists public.sessions (
   allow_participant_control boolean not null default true
 );
 
+alter table public.sessions add column if not exists playlist_id text;
+alter table public.sessions add column if not exists playlist_index integer not null default 0;
+alter table public.sessions add column if not exists playlist_video_ids text[] not null default '{}';
+
 create table if not exists public.session_playback (
   session_id uuid primary key references public.sessions(id) on delete cascade,
   is_playing boolean not null default false,
