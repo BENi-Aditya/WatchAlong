@@ -1,73 +1,80 @@
-# Welcome to your Lovable project
+# Watch Along
 
-## Project info
+Watch together. Instantly. Anywhere.
 
-**URL**: https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID
+Live App: https://watch-along.vercel.app/
 
-## How can I edit this code?
+---
 
-There are several ways of editing your application.
+## What is Watch Along?
 
-**Use Lovable**
+Watch Along is a web-based platform that lets you watch YouTube videos or playlists together with friends in perfect sync — without installing anything.
 
-Simply visit the [Lovable Project](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and start prompting.
+Paste a link, share a code, and start watching the same moment.
 
-Changes made via Lovable will be committed automatically to this repo.
+No downloads.  
+No setup friction.  
+Just press play.
 
-**Use your preferred IDE**
+---
 
-If you want to work locally using your own IDE, you can clone this repo and push changes. Pushed changes will also be reflected in Lovable.
+## Why Watch Along?
 
-The only requirement is having Node.js & npm installed - [install with nvm](https://github.com/nvm-sh/nvm#installing-and-updating)
+Most “watch together” tools feel slow, clunky, or limited to specific devices.  
+Watch Along removes that friction and keeps the experience simple.
 
-Follow these steps:
+### Key Highlights
 
-```sh
-# Step 1: Clone the repository using the project's Git URL.
-git clone <YOUR_GIT_URL>
+- Fully web-based, works on any modern browser  
+- Instant sessions using YouTube video or playlist links  
+- Automatic sync for play, pause, and seek actions  
+- Built-in live chat while watching  
+- Cross-device support (laptop, tablet, mobile)
 
-# Step 2: Navigate to the project directory.
-cd <YOUR_PROJECT_NAME>
+---
 
-# Step 3: Install the necessary dependencies.
-npm i
+## Supported Content
 
-# Step 4: Start the development server with auto-reloading and an instant preview.
-npm run dev
-```
+- YouTube videos  
+- YouTube playlists with automatic continuous playback
 
-**Edit a file directly in GitHub**
+---
 
-- Navigate to the desired file(s).
-- Click the "Edit" button (pencil icon) at the top right of the file view.
-- Make your changes and commit the changes.
+## How It Works
 
-**Use GitHub Codespaces**
+1. Create a session  
+2. Paste a YouTube video or playlist link  
+3. Share the join link or code  
+4. Watch together in real time
 
-- Navigate to the main page of your repository.
-- Click on the "Code" button (green button) near the top right.
-- Select the "Codespaces" tab.
-- Click on "New codespace" to launch a new Codespace environment.
-- Edit files directly within the Codespace and commit and push your changes once you're done.
+Late joiners are automatically synced to the current timestamp.
 
-## What technologies are used for this project?
+---
 
-This project is built with:
+## Design Philosophy
 
-- Vite
-- TypeScript
-- React
-- shadcn-ui
-- Tailwind CSS
+- Minimal, distraction-free interface  
+- Dark theme optimized for long viewing  
+- Clear layout focused on the content and chat  
 
-## How can I deploy this project?
+---
 
-Simply open [Lovable](https://lovable.dev/projects/REPLACE_WITH_PROJECT_ID) and click on Share -> Publish.
+## Tech Stack (High-Level)
 
-## Can I connect a custom domain to my Lovable project?
+- Frontend: Modern JavaScript framework  
+- Video Playback: YouTube IFrame Player API  
+- Realtime Sync: WebSockets  
+- Hosting: Vercel
 
-Yes, you can!
+---
 
-To connect a domain, navigate to Project > Settings > Domains and click Connect Domain.
+## Live Demo
 
-Read more here: [Setting up a custom domain](https://docs.lovable.dev/features/custom-domain#custom-domain)
+https://watch-along.vercel.app/
+
+---
+
+## Feedback
+
+Watch Along is actively evolving.  
+Suggestions, improvements, and feature ideas are welcome.
