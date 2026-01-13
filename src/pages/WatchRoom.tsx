@@ -18,7 +18,6 @@ import {
   PhoneOff,
   Minimize2,
   Pin,
-  Grip,
   Smile,
   MessageCircle, 
   X, 
@@ -192,11 +191,12 @@ const WatchRoom = () => {
    const [videoCamOff, setVideoCamOff] = useState(false);
    const [pinnedUserId, setPinnedUserId] = useState<string | null>(null);
    const [videoPanel, setVideoPanel] = useState<{ x: number; y: number; w: number; h: number }>(() => ({
-    x: 24,
-    y: 92,
-    w: 520,
-    h: 520,
-  }));
+     x: 24,
+     y: 92,
+     w: 520,
+     h: 520,
+   }));
+   const [pipPanel, setPipPanel] = useState<{ x: number; y: number; w: number }>(() => ({ x: 12, y: 12, w: 180 }));
   
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -225,6 +225,11 @@ const WatchRoom = () => {
   const inVideoCallRef = useRef(false);
   const videoDragRef = useRef<{ active: boolean; startX: number; startY: number; baseX: number; baseY: number } | null>(null);
   const videoResizeRef = useRef<{ active: boolean; startX: number; startY: number; baseW: number; baseH: number } | null>(null);
+  const pipAspectRef = useRef<number>(16 / 9);
+  const pipDragRef = useRef<{ active: boolean; startX: number; startY: number; baseX: number; baseY: number } | null>(null);
+  const pipResizeRef = useRef<{ active: boolean; startX: number; startY: number; baseW: number } | null>(null);
+  const mainVideoWrapRef = useRef<HTMLDivElement | null>(null);
+  const mainRemoteVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [durationSec, setDurationSec] = useState<number>(0);
@@ -1412,16 +1417,76 @@ const WatchRoom = () => {
       if (r?.active) {
         const dx = e.clientX - r.startX;
         const dy = e.clientY - r.startY;
+        let w = Math.max(260, r.baseW + dx);
+        let h = Math.max(180, r.baseH + dy);
+
+        const el = mainRemoteVideoRef.current;
+        const targetAspect = el && el.videoWidth > 0 && el.videoHeight > 0 ? el.videoWidth / el.videoHeight : null;
+        if (targetAspect) {
+          const aspect = w / h;
+          const relDiff = Math.abs(aspect - targetAspect) / targetAspect;
+          if (relDiff < 0.06) {
+            if (Math.abs(dx) >= Math.abs(dy)) {
+              h = Math.max(180, Math.round(w / targetAspect));
+            } else {
+              w = Math.max(260, Math.round(h * targetAspect));
+            }
+          }
+        }
+
         setVideoPanel((prev) => ({
           ...prev,
-          w: Math.max(260, r.baseW + dx),
-          h: Math.max(180, r.baseH + dy),
+          w,
+          h,
         }));
+      }
+
+      const pd = pipDragRef.current;
+      if (pd?.active) {
+        const wrap = mainVideoWrapRef.current;
+        if (wrap) {
+          const rect = wrap.getBoundingClientRect();
+          const pad = 10;
+          const dx = e.clientX - pd.startX;
+          const dy = e.clientY - pd.startY;
+          setPipPanel((prev) => {
+            const pipW = prev.w;
+            const pipH = pipW / pipAspectRef.current;
+            const maxX = Math.max(pad, rect.width - pipW - pad);
+            const maxY = Math.max(pad, rect.height - pipH - pad);
+            return {
+              ...prev,
+              x: Math.max(pad, Math.min(maxX, pd.baseX + dx)),
+              y: Math.max(pad, Math.min(maxY, pd.baseY + dy)),
+            };
+          });
+        }
+      }
+
+      const pr = pipResizeRef.current;
+      if (pr?.active) {
+        const wrap = mainVideoWrapRef.current;
+        if (wrap) {
+          const rect = wrap.getBoundingClientRect();
+          const pad = 10;
+          const dx = e.clientX - pr.startX;
+          setPipPanel((prev) => {
+            const aspect = pipAspectRef.current;
+            const minW = 120;
+            const maxWByX = Math.max(minW, rect.width - prev.x - pad);
+            const maxWByY = Math.max(minW, (rect.height - prev.y - pad) * aspect);
+            const maxW = Math.max(minW, Math.min(maxWByX, maxWByY));
+            const nextW = Math.max(minW, Math.min(maxW, pr.baseW + dx));
+            return { ...prev, w: nextW };
+          });
+        }
       }
     };
     const onUp = () => {
       if (videoDragRef.current) videoDragRef.current = { ...videoDragRef.current, active: false };
       if (videoResizeRef.current) videoResizeRef.current = { ...videoResizeRef.current, active: false };
+      if (pipDragRef.current) pipDragRef.current = { ...pipDragRef.current, active: false };
+      if (pipResizeRef.current) pipResizeRef.current = { ...pipResizeRef.current, active: false };
     };
     window.addEventListener("pointermove", onMove);
     window.addEventListener("pointerup", onUp);
@@ -2285,7 +2350,10 @@ const WatchRoom = () => {
                           autoPlay
                           playsInline
                           className="absolute inset-0 w-full h-full object-cover"
-                          ref={(el) => attachStream(el, mainRemoteStream)}
+                          ref={(el) => {
+                            mainRemoteVideoRef.current = el;
+                            attachStream(el, mainRemoteStream);
+                          }}
                         />
                       ) : (
                         <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
@@ -2293,16 +2361,87 @@ const WatchRoom = () => {
                         </div>
                       )}
 
-                      <div className="absolute left-3 bottom-3 w-[38%] max-w-[180px] aspect-video rounded-2xl overflow-hidden bg-black/30 border border-white/10">
+                      <div ref={mainVideoWrapRef} className="absolute inset-0">
+                        <div
+                          className="absolute rounded-2xl overflow-hidden bg-black/30 border border-white/10 cursor-move select-none"
+                          style={{
+                            left: pipPanel.x,
+                            top: pipPanel.y,
+                            width: pipPanel.w,
+                            height: pipPanel.w / pipAspectRef.current,
+                          }}
+                          onPointerDown={(e) => {
+                            const target = e.target as HTMLElement | null;
+                            if (target && target.closest("button")) return;
+                            e.stopPropagation();
+                            pipDragRef.current = {
+                              active: true,
+                              startX: e.clientX,
+                              startY: e.clientY,
+                              baseX: pipPanel.x,
+                              baseY: pipPanel.y,
+                            };
+                            try {
+                              (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+                            } catch {
+                            }
+                          }}
+                        >
                         <video
                           ref={localVideoRef}
                           autoPlay
                           playsInline
                           muted
                           className="absolute inset-0 w-full h-full object-cover"
+                          onLoadedMetadata={() => {
+                            const el = localVideoRef.current;
+                            if (!el) return;
+                            if (el.videoWidth > 0 && el.videoHeight > 0) {
+                              pipAspectRef.current = el.videoWidth / el.videoHeight;
+                            }
+                          }}
                         />
                         <div className="absolute bottom-2 left-2 text-[11px] px-2 py-1 rounded-lg bg-black/30 text-white">You</div>
+
+                        <button
+                          type="button"
+                          className={cn(
+                            "absolute right-1.5 bottom-1.5",
+                            "w-9 h-9",
+                            "rounded-2xl",
+                            "bg-transparent",
+                            "cursor-se-resize",
+                            "group"
+                          )}
+                          title="Resize"
+                          aria-label="Resize local video"
+                          onPointerDown={(e) => {
+                            e.stopPropagation();
+                            pipResizeRef.current = {
+                              active: true,
+                              startX: e.clientX,
+                              startY: e.clientY,
+                              baseW: pipPanel.w,
+                            };
+                            try {
+                              (e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
+                            } catch {
+                            }
+                          }}
+                        >
+                          <span
+                            className={cn(
+                              "pointer-events-none absolute right-1.5 bottom-1.5",
+                              "w-5 h-5",
+                              "rounded-br-xl",
+                              "border-r-[5px] border-b-[5px]",
+                              "border-white/70 group-hover:border-white/90",
+                              "shadow-[0_0_0_1px_rgba(0,0,0,0.10)]"
+                            )}
+                          />
+                        </button>
                       </div>
+                    </div>
                     </div>
                   )}
                 </div>
@@ -2331,7 +2470,7 @@ const WatchRoom = () => {
                   </div>
                 )}
 
-                <div className="mt-3 flex items-center justify-end gap-3">
+                <div className="mt-3 flex items-center justify-start gap-3">
                   <button
                     type="button"
                     className={cn(
