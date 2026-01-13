@@ -1,4 +1,4 @@
-import { Play, Users, Zap, Link2, ArrowRight } from "lucide-react";
+import { Play, Users, Zap, Link2, ArrowRight, MessageCircle, ListVideo } from "lucide-react";
 import { GlassCard } from "@/components/ui/GlassCard";
 import { GlassButton } from "@/components/ui/GlassButton";
 import { GlassInput } from "@/components/ui/GlassInput";
@@ -191,43 +191,77 @@ const Index = () => {
           </div>
 
           {/* Features */}
-          <div className="grid md:grid-cols-3 gap-6 mb-24">
-            {[
-              {
-                icon: <Zap className="w-6 h-6" />,
-                title: "Same moment",
-                description: "Everyone stays on the same timestamp — no drifting apart mid-scene.",
-                bgColor: "bg-pink-100 dark:bg-pink-500/20",
-                iconColor: "text-pink-600 dark:text-pink-400",
-              },
-              {
-                icon: <Users className="w-6 h-6" />,
-                title: "Catch up instantly",
-                description: "Late joiners jump right to where everyone is — no “wait, pause” messages.",
-                bgColor: "bg-yellow-100 dark:bg-yellow-500/20",
-                iconColor: "text-yellow-600 dark:text-yellow-400",
-              },
-              {
-                icon: <Play className="w-6 h-6" />,
-                title: "No interruptions",
-                description: "Just the video and your friends — keep the vibe, keep the moment.",
-                bgColor: "bg-pink-100 dark:bg-pink-500/20",
-                iconColor: "text-pink-600 dark:text-pink-400",
-              },
-            ].map((feature, i) => (
-              <GlassCard 
-                key={feature.title} 
-                hover 
-                className="p-6 animate-fade-in"
-                style={{ animationDelay: `${0.1 * (i + 1)}s` }}
-              >
-                <div className={`w-12 h-12 ${feature.bgColor} rounded-xl flex items-center justify-center mb-4 ${feature.iconColor}`}>
-                  {feature.icon}
-                </div>
-                <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
-                <p className="text-muted-foreground">{feature.description}</p>
-              </GlassCard>
-            ))}
+          <div className="space-y-6 mb-24">
+            <div className="grid md:grid-cols-3 gap-6">
+              {[
+                {
+                  icon: <Zap className="w-6 h-6" />,
+                  title: "Same moment",
+                  description: "Everyone stays on the same timestamp — no drifting apart mid-scene.",
+                  bgColor: "bg-pink-100 dark:bg-pink-500/20",
+                  iconColor: "text-pink-600 dark:text-pink-400",
+                },
+                {
+                  icon: <Users className="w-6 h-6" />,
+                  title: "Catch up instantly",
+                  description: "Late joiners jump right to where everyone is — no “wait, pause” messages.",
+                  bgColor: "bg-yellow-100 dark:bg-yellow-500/20",
+                  iconColor: "text-yellow-600 dark:text-yellow-400",
+                },
+                {
+                  icon: <Play className="w-6 h-6" />,
+                  title: "No interruptions",
+                  description: "Just the video and your friends — keep the vibe, keep the moment.",
+                  bgColor: "bg-pink-100 dark:bg-pink-500/20",
+                  iconColor: "text-pink-600 dark:text-pink-400",
+                },
+              ].map((feature, i) => (
+                <GlassCard
+                  key={feature.title}
+                  hover
+                  className="p-6 animate-fade-in"
+                  style={{ animationDelay: `${0.1 * (i + 1)}s` }}
+                >
+                  <div className={`w-12 h-12 ${feature.bgColor} rounded-xl flex items-center justify-center mb-4 ${feature.iconColor}`}>
+                    {feature.icon}
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
+                  <p className="text-muted-foreground">{feature.description}</p>
+                </GlassCard>
+              ))}
+            </div>
+
+            <div className="grid md:grid-cols-2 gap-6">
+              {[
+                {
+                  icon: <MessageCircle className="w-6 h-6" />,
+                  title: "Chat realtime",
+                  description: "React live with your friends while you watch — messages land instantly.",
+                  bgColor: "bg-yellow-100 dark:bg-yellow-500/20",
+                  iconColor: "text-yellow-600 dark:text-yellow-400",
+                },
+                {
+                  icon: <ListVideo className="w-6 h-6" />,
+                  title: "Playlists",
+                  description: "Queue full YouTube playlists and let episodes play one after another, together.",
+                  bgColor: "bg-pink-100 dark:bg-pink-500/20",
+                  iconColor: "text-pink-600 dark:text-pink-400",
+                },
+              ].map((feature, i) => (
+                <GlassCard
+                  key={feature.title}
+                  hover
+                  className="p-6 animate-fade-in"
+                  style={{ animationDelay: `${0.1 * (i + 4)}s` }}
+                >
+                  <div className={`w-12 h-12 ${feature.bgColor} rounded-xl flex items-center justify-center mb-4 ${feature.iconColor}`}>
+                    {feature.icon}
+                  </div>
+                  <h3 className="text-lg font-semibold mb-2">{feature.title}</h3>
+                  <p className="text-muted-foreground">{feature.description}</p>
+                </GlassCard>
+              ))}
+            </div>
           </div>
 
           {/* Join Section */}

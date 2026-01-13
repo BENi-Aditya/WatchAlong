@@ -10,6 +10,15 @@ import {
   Link2,
   Loader2,
   Maximize, 
+  Video,
+  Mic,
+  MicOff,
+  Camera,
+  CameraOff,
+  PhoneOff,
+  Minimize2,
+  Pin,
+  Grip,
   Smile,
   MessageCircle, 
   X, 
@@ -30,6 +39,16 @@ import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { cn } from "@/lib/utils";
 import { toast } from "@/components/ui/sonner";
+import {
+  AlertDialog,
+  AlertDialogAction,
+  AlertDialogCancel,
+  AlertDialogContent,
+  AlertDialogDescription,
+  AlertDialogFooter,
+  AlertDialogHeader,
+  AlertDialogTitle,
+} from "@/components/ui/alert-dialog";
 import { useAuth } from "@/lib/auth";
 import { supabase } from "@/lib/supabase";
 import type { RealtimeChannel } from "@supabase/supabase-js";
@@ -80,6 +99,51 @@ type PendingCommand = {
   untilMs: number;
 };
 
+ type VideoSignalBase = {
+   kind: "video";
+   roomId: string;
+   fromUserId: string;
+   toUserId?: string;
+   ts: number;
+ };
+
+ type VideoSignalInvite = VideoSignalBase & {
+   type: "invite";
+   fromUsername: string;
+ };
+
+ type VideoSignalJoin = VideoSignalBase & {
+   type: "join";
+   fromUsername: string;
+ };
+
+ type VideoSignalLeave = VideoSignalBase & {
+   type: "leave";
+ };
+
+ type VideoSignalOffer = VideoSignalBase & {
+   type: "offer";
+   sdp: RTCSessionDescriptionInit;
+ };
+
+ type VideoSignalAnswer = VideoSignalBase & {
+   type: "answer";
+   sdp: RTCSessionDescriptionInit;
+ };
+
+ type VideoSignalIce = VideoSignalBase & {
+   type: "ice";
+   candidate: RTCIceCandidateInit;
+ };
+
+ type VideoSignal =
+   | VideoSignalInvite
+   | VideoSignalJoin
+   | VideoSignalLeave
+   | VideoSignalOffer
+   | VideoSignalAnswer
+   | VideoSignalIce;
+
 const WatchRoom = () => {
   const { sessionId } = useParams();
   const navigate = useNavigate();
@@ -119,6 +183,20 @@ const WatchRoom = () => {
   const [hostUserId, setHostUserId] = useState<string | null>(null);
   const [playback, setPlayback] = useState<PlaybackState | null>(null);
   const [permissions, setPermissions] = useState<SessionPermissions>({ allowParticipantControl: true });
+
+   const [videoInviteOpen, setVideoInviteOpen] = useState(false);
+   const [videoInviteFrom, setVideoInviteFrom] = useState<{ userId: string; username: string } | null>(null);
+   const [inVideoCall, setInVideoCall] = useState(false);
+   const [videoMinimized, setVideoMinimized] = useState(false);
+   const [videoMicMuted, setVideoMicMuted] = useState(true);
+   const [videoCamOff, setVideoCamOff] = useState(false);
+   const [pinnedUserId, setPinnedUserId] = useState<string | null>(null);
+   const [videoPanel, setVideoPanel] = useState<{ x: number; y: number; w: number; h: number }>(() => ({
+    x: 24,
+    y: 92,
+    w: 520,
+    h: 520,
+  }));
   
   const controlsTimeoutRef = useRef<NodeJS.Timeout>();
   const chatEndRef = useRef<HTMLDivElement>(null);
@@ -144,9 +222,19 @@ const WatchRoom = () => {
   const playlistMetaByIdRef = useRef<Record<string, { title?: string }>>({});
   const autoAdvanceLockRef = useRef<number>(0);
   const autoAdvanceFromVideoIdRef = useRef<string | null>(null);
+  const inVideoCallRef = useRef(false);
+  const videoDragRef = useRef<{ active: boolean; startX: number; startY: number; baseX: number; baseY: number } | null>(null);
+  const videoResizeRef = useRef<{ active: boolean; startX: number; startY: number; baseW: number; baseH: number } | null>(null);
 
   const [messages, setMessages] = useState<Message[]>([]);
   const [durationSec, setDurationSec] = useState<number>(0);
+
+   const localStreamRef = useRef<MediaStream | null>(null);
+   const localAudioTrackRef = useRef<MediaStreamTrack | null>(null);
+   const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
+   const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
+   const [remoteStreams, setRemoteStreams] = useState<Array<{ userId: string; stream: MediaStream }>>([]);
+   const localVideoRef = useRef<HTMLVideoElement | null>(null);
 
   const participants = presence.map((p) => ({
     key: `${p.userId}-${p.updatedMs}`,
@@ -161,6 +249,11 @@ const WatchRoom = () => {
     .slice(0, 3);
 
   const avatarByUserId = new Map(presence.map((p) => [p.userId, p.avatarUrl] as const));
+
+  const attachStream = (el: HTMLVideoElement | null, stream: MediaStream | null) => {
+    if (!el || !stream) return;
+    if ((el as any).srcObject !== stream) (el as any).srcObject = stream;
+  };
 
   const initialsFor = (name: string) => {
     const s = (name || "").trim();
@@ -190,6 +283,243 @@ const WatchRoom = () => {
   const isHost = Boolean(user?.id && hostUserId && user.id === hostUserId);
   const canControlPlayback = isHost || Boolean(permissions.allowParticipantControl);
   const canSendPlaybackCommands = canControlPlayback && wsConnected && hasSnapshot;
+
+  const mainRemoteUserId = pinnedUserId || (remoteStreams[0]?.userId || null);
+  const mainRemoteStream = mainRemoteUserId
+    ? (remoteStreams.find((r) => r.userId === mainRemoteUserId)?.stream || null)
+    : null;
+  const otherRemoteStreams = mainRemoteUserId
+    ? remoteStreams.filter((r) => r.userId !== mainRemoteUserId)
+    : remoteStreams;
+  const showGridLayout = remoteStreams.length >= 2 && !pinnedUserId;
+
+   useEffect(() => {
+     userIdRef.current = user?.id || null;
+   }, [user?.id]);
+
+   const updateRemoteStreamsState = () => {
+     const list = Array.from(remoteStreamsRef.current.entries()).map(([userId, stream]) => ({ userId, stream }));
+     setRemoteStreams(list);
+   };
+
+   const getIceServers = () => {
+     return [
+       { urls: "stun:stun.l.google.com:19302" },
+       { urls: "stun:stun1.l.google.com:19302" },
+     ];
+   };
+
+   const sendVideoSignal = async (signal: VideoSignal) => {
+     const channel = channelRef.current;
+     if (!channel) return;
+     try {
+       await channel.send({ type: "broadcast", event: "video", payload: signal });
+     } catch {
+     }
+   };
+
+   const ensureLocalVideoStream = async () => {
+     const existing = localStreamRef.current;
+     if (existing && existing.getVideoTracks().length) return existing;
+     const stream = await navigator.mediaDevices.getUserMedia({ video: true, audio: false });
+     localStreamRef.current = stream;
+     return stream;
+   };
+
+   const ensureLocalAudioTrack = async () => {
+     if (localAudioTrackRef.current) return localAudioTrackRef.current;
+     const stream = await navigator.mediaDevices.getUserMedia({ video: false, audio: true });
+     const track = stream.getAudioTracks()[0] || null;
+     if (!track) return null;
+     localAudioTrackRef.current = track;
+     return track;
+   };
+
+   const replaceOutgoingAudioTrack = async (next: MediaStreamTrack | null) => {
+     for (const pc of peerConnectionsRef.current.values()) {
+       try {
+         for (const t of pc.getTransceivers()) {
+           if (t.receiver?.track?.kind === "audio") {
+             await t.sender.replaceTrack(next);
+           }
+         }
+       } catch {
+       }
+     }
+   };
+
+   const stopLocalAudio = async () => {
+     const t = localAudioTrackRef.current;
+     localAudioTrackRef.current = null;
+     await replaceOutgoingAudioTrack(null);
+     if (t) {
+       try {
+         t.stop();
+       } catch {
+       }
+     }
+   };
+
+   useEffect(() => {
+     if (!inVideoCallRef.current) return;
+     if (videoMicMuted) {
+       void stopLocalAudio();
+       return;
+     }
+     void (async () => {
+       const t = await ensureLocalAudioTrack();
+       if (!t) return;
+       await replaceOutgoingAudioTrack(t);
+     })();
+   }, [videoMicMuted]);
+
+   useEffect(() => {
+     const stream = localStreamRef.current;
+     if (!stream) return;
+     for (const t of stream.getVideoTracks()) t.enabled = !videoCamOff;
+   }, [videoCamOff]);
+
+   const closePeer = (peerUserId: string) => {
+     const pc = peerConnectionsRef.current.get(peerUserId);
+     peerConnectionsRef.current.delete(peerUserId);
+     if (pc) {
+       try {
+         pc.ontrack = null;
+         pc.onicecandidate = null;
+         pc.onconnectionstatechange = null;
+         pc.close();
+       } catch {
+       }
+     }
+     remoteStreamsRef.current.delete(peerUserId);
+     updateRemoteStreamsState();
+   };
+
+   const createPeerConnection = async (peerUserId: string) => {
+     const existing = peerConnectionsRef.current.get(peerUserId);
+     if (existing) return existing;
+
+     const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+     peerConnectionsRef.current.set(peerUserId, pc);
+
+     try {
+       pc.addTransceiver("audio", { direction: "sendrecv" });
+     } catch {
+     }
+
+     const local = await ensureLocalVideoStream();
+     for (const track of local.getVideoTracks()) {
+       try {
+         pc.addTrack(track, local);
+       } catch {
+       }
+     }
+
+     pc.onicecandidate = (e) => {
+       const candidate = e.candidate;
+       if (!candidate) return;
+       const roomId = resolvedSessionIdRef.current;
+       const fromUserId = userIdRef.current;
+       if (!roomId || !fromUserId) return;
+       void sendVideoSignal({
+         kind: "video",
+         type: "ice",
+         roomId,
+         fromUserId,
+         toUserId: peerUserId,
+         candidate: candidate.toJSON(),
+         ts: Date.now(),
+       });
+     };
+
+     pc.ontrack = (e) => {
+       const stream = e.streams?.[0];
+       if (!stream) return;
+       remoteStreamsRef.current.set(peerUserId, stream);
+       updateRemoteStreamsState();
+     };
+
+     pc.onconnectionstatechange = () => {
+       const state = pc.connectionState;
+       if (state === "failed" || state === "closed" || state === "disconnected") {
+         closePeer(peerUserId);
+       }
+     };
+
+     return pc;
+   };
+
+   const startCallForMe = async () => {
+     if (inVideoCallRef.current) return;
+     if (!resolvedSessionIdRef.current) return;
+     if (!user?.id) return;
+
+     try {
+       await ensureLocalVideoStream();
+       setInVideoCall(true);
+       setVideoMinimized(false);
+       setVideoMicMuted(true);
+       setVideoCamOff(false);
+       await stopLocalAudio();
+
+       const roomId = resolvedSessionIdRef.current;
+       await sendVideoSignal({
+         kind: "video",
+         type: "join",
+         roomId,
+         fromUserId: user.id,
+         fromUsername: user.username,
+         ts: Date.now(),
+       });
+     } catch (e: any) {
+       toast.error(e?.message ? String(e.message) : "Unable to start video");
+       setInVideoCall(false);
+     }
+   };
+
+   const leaveCallForMe = async () => {
+     setInVideoCall(false);
+     setVideoInviteOpen(false);
+     setVideoInviteFrom(null);
+     setPinnedUserId(null);
+
+     const roomId = resolvedSessionIdRef.current;
+     const fromUserId = userIdRef.current;
+     if (roomId && fromUserId) {
+       void sendVideoSignal({ kind: "video", type: "leave", roomId, fromUserId, ts: Date.now() });
+     }
+
+     for (const peerUserId of Array.from(peerConnectionsRef.current.keys())) {
+       closePeer(peerUserId);
+     }
+
+     void stopLocalAudio();
+
+     const stream = localStreamRef.current;
+     localStreamRef.current = null;
+     if (stream) {
+       for (const t of stream.getTracks()) {
+         try {
+           t.stop();
+         } catch {
+         }
+       }
+     }
+   };
+
+   const inviteRoomToVideo = async () => {
+     if (!resolvedSessionIdRef.current) return;
+     if (!user?.id) return;
+     await sendVideoSignal({
+       kind: "video",
+       type: "invite",
+       roomId: resolvedSessionIdRef.current,
+       fromUserId: user.id,
+       fromUsername: user.username,
+       ts: Date.now(),
+     });
+     void startCallForMe();
+   };
 
   const activePlaylistIndex = Number.isFinite(playlistIndex) ? playlistIndex : 0;
   const activePlaylistVideoId = playlistVideoIds[activePlaylistIndex] || null;
@@ -291,6 +621,10 @@ const WatchRoom = () => {
   useEffect(() => {
     userIdRef.current = user?.id || null;
   }, [user?.id]);
+
+  useEffect(() => {
+    inVideoCallRef.current = inVideoCall;
+  }, [inVideoCall]);
 
   useEffect(() => {
     chatEndRef.current?.scrollIntoView({ behavior: "smooth" });
@@ -837,15 +1171,9 @@ const WatchRoom = () => {
     });
     channelRef.current = channel;
 
-    channel.on("presence", { event: "sync" }, () => {
-      setPresence(toPresenceList(channel));
-    });
-    channel.on("presence", { event: "join" }, () => {
-      setPresence(toPresenceList(channel));
-    });
-    channel.on("presence", { event: "leave" }, () => {
-      setPresence(toPresenceList(channel));
-    });
+    channel.on("presence", { event: "sync" }, () => setPresence(toPresenceList(channel)));
+    channel.on("presence", { event: "join" }, () => setPresence(toPresenceList(channel)));
+    channel.on("presence", { event: "leave" }, () => setPresence(toPresenceList(channel)));
 
     channel.on(
       "postgres_changes",
@@ -940,6 +1268,102 @@ const WatchRoom = () => {
       }
     );
 
+    channel.on("broadcast", { event: "video" }, async ({ payload }) => {
+      const msg = payload as VideoSignal;
+      if (!msg || (msg as any).kind !== "video") return;
+      if (msg.roomId !== resolvedSessionIdRef.current) return;
+      const me = userIdRef.current;
+      if (!me) return;
+      if (msg.fromUserId === me) return;
+      if (msg.toUserId && msg.toUserId !== me) return;
+
+      if (msg.type === "invite") {
+        if (inVideoCallRef.current) return;
+        setVideoInviteFrom({ userId: msg.fromUserId, username: msg.fromUsername });
+        setVideoInviteOpen(true);
+        return;
+      }
+
+      if (msg.type === "leave") {
+        closePeer(msg.fromUserId);
+        return;
+      }
+
+      if (msg.type === "join") {
+        if (!inVideoCallRef.current) return;
+        const peerId = msg.fromUserId;
+        const shouldInitiate = String(me) < String(peerId);
+        if (!shouldInitiate) return;
+        const pc = await createPeerConnection(peerId);
+        try {
+          const offer = await pc.createOffer();
+          await pc.setLocalDescription(offer);
+          const roomId = resolvedSessionIdRef.current;
+          const fromUserId = userIdRef.current;
+          if (!roomId || !fromUserId) return;
+          await sendVideoSignal({
+            kind: "video",
+            type: "offer",
+            roomId,
+            fromUserId,
+            toUserId: peerId,
+            sdp: offer,
+            ts: Date.now(),
+          });
+        } catch {
+        }
+        return;
+      }
+
+      if (msg.type === "offer") {
+        if (!inVideoCallRef.current) return;
+        const peerId = msg.fromUserId;
+        const pc = await createPeerConnection(peerId);
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+          const answer = await pc.createAnswer();
+          await pc.setLocalDescription(answer);
+          const roomId = resolvedSessionIdRef.current;
+          const fromUserId = userIdRef.current;
+          if (!roomId || !fromUserId) return;
+          await sendVideoSignal({
+            kind: "video",
+            type: "answer",
+            roomId,
+            fromUserId,
+            toUserId: peerId,
+            sdp: answer,
+            ts: Date.now(),
+          });
+        } catch {
+        }
+        return;
+      }
+
+      if (msg.type === "answer") {
+        if (!inVideoCallRef.current) return;
+        const peerId = msg.fromUserId;
+        const pc = peerConnectionsRef.current.get(peerId);
+        if (!pc) return;
+        try {
+          await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+        } catch {
+        }
+        return;
+      }
+
+      if (msg.type === "ice") {
+        if (!inVideoCallRef.current) return;
+        const peerId = msg.fromUserId;
+        const pc = peerConnectionsRef.current.get(peerId);
+        if (!pc) return;
+        try {
+          await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
+        } catch {
+        }
+      }
+    });
+
     channel.subscribe(async (status) => {
       if (status === "SUBSCRIBED") {
         setWsConnected(true);
@@ -955,8 +1379,9 @@ const WatchRoom = () => {
     });
 
     return () => {
-      channelRef.current = null;
       setWsConnected(false);
+      channelRef.current = null;
+      void leaveCallForMe();
       if (typingTimeoutRef.current) {
         window.clearTimeout(typingTimeoutRef.current);
         typingTimeoutRef.current = null;
@@ -964,6 +1389,47 @@ const WatchRoom = () => {
       void supabase.removeChannel(channel);
     };
   }, [resolvedSessionId, user?.id, user?.username, user?.avatarUrl]);
+
+   useEffect(() => {
+     const el = localVideoRef.current;
+     const stream = localStreamRef.current;
+     if (!el || !stream) return;
+     if ((el as any).srcObject !== stream) {
+       (el as any).srcObject = stream;
+     }
+   }, [inVideoCall]);
+
+  useEffect(() => {
+    if (!inVideoCall) return;
+    const onMove = (e: PointerEvent) => {
+      const d = videoDragRef.current;
+      if (d?.active) {
+        const dx = e.clientX - d.startX;
+        const dy = e.clientY - d.startY;
+        setVideoPanel((prev) => ({ ...prev, x: d.baseX + dx, y: d.baseY + dy }));
+      }
+      const r = videoResizeRef.current;
+      if (r?.active) {
+        const dx = e.clientX - r.startX;
+        const dy = e.clientY - r.startY;
+        setVideoPanel((prev) => ({
+          ...prev,
+          w: Math.max(260, r.baseW + dx),
+          h: Math.max(180, r.baseH + dy),
+        }));
+      }
+    };
+    const onUp = () => {
+      if (videoDragRef.current) videoDragRef.current = { ...videoDragRef.current, active: false };
+      if (videoResizeRef.current) videoResizeRef.current = { ...videoResizeRef.current, active: false };
+    };
+    window.addEventListener("pointermove", onMove);
+    window.addEventListener("pointerup", onUp);
+    return () => {
+      window.removeEventListener("pointermove", onMove);
+      window.removeEventListener("pointerup", onUp);
+    };
+  }, [inVideoCall]);
 
   useEffect(() => {
     const id = window.setInterval(() => {
@@ -1518,6 +1984,21 @@ const WatchRoom = () => {
             {/* Theme Toggle */}
             <ThemeToggle />
 
+            <button
+              type="button"
+              className={cn(
+                "glass-panel-subtle p-2 rounded-lg transition-smooth",
+                inVideoCall ? "bg-primary text-primary-foreground" : "hover:bg-muted"
+              )}
+              title={inVideoCall ? "Video call" : "Start video call"}
+              onClick={() => {
+                if (inVideoCall) setVideoMinimized((v) => !v);
+                else void inviteRoomToVideo();
+              }}
+            >
+              <Video className="w-4 h-4" />
+            </button>
+
             {playlistId && (
               <button
                 type="button"
@@ -1670,6 +2151,290 @@ const WatchRoom = () => {
           </div>
         </div>
       </div>
+
+      <AlertDialog open={videoInviteOpen} onOpenChange={setVideoInviteOpen}>
+        <AlertDialogContent>
+          <AlertDialogHeader>
+            <AlertDialogTitle>Join video call?</AlertDialogTitle>
+            <AlertDialogDescription>
+              {videoInviteFrom ? `${videoInviteFrom.username} started a video call in this room.` : "A video call started in this room."}
+            </AlertDialogDescription>
+          </AlertDialogHeader>
+          <AlertDialogFooter>
+            <AlertDialogCancel
+              onClick={() => {
+                setVideoInviteOpen(false);
+                setVideoInviteFrom(null);
+              }}
+            >
+              Not now
+            </AlertDialogCancel>
+            <AlertDialogAction
+              onClick={() => {
+                setVideoInviteOpen(false);
+                void startCallForMe();
+              }}
+            >
+              Join
+            </AlertDialogAction>
+          </AlertDialogFooter>
+        </AlertDialogContent>
+      </AlertDialog>
+
+      {inVideoCall && (
+        <div
+          className="fixed z-40"
+          style={{
+            left: videoPanel.x,
+            top: videoPanel.y,
+            width: videoMinimized ? 320 : videoPanel.w,
+            height: videoMinimized ? 76 : videoPanel.h,
+          }}
+        >
+          <div
+            className={cn(
+              "h-full w-full rounded-2xl overflow-hidden",
+              "border border-white/20 dark:border-white/10",
+              "bg-white/10 dark:bg-white/5",
+              "backdrop-blur-2xl",
+              "shadow-[0_20px_80px_rgba(0,0,0,0.35)]"
+            )}
+          >
+            <div
+              className={cn(
+                "flex items-center justify-between px-3 py-2",
+                "border-b border-white/10",
+                "cursor-grab active:cursor-grabbing",
+                "select-none"
+              )}
+              onPointerDown={(e) => {
+                const target = e.target as HTMLElement | null;
+                if (target && target.closest("button")) return;
+                videoDragRef.current = {
+                  active: true,
+                  startX: e.clientX,
+                  startY: e.clientY,
+                  baseX: videoPanel.x,
+                  baseY: videoPanel.y,
+                };
+                try {
+                  (e.currentTarget as HTMLDivElement).setPointerCapture(e.pointerId);
+                } catch {
+                }
+              }}
+            >
+              <div className="text-sm font-medium">Video</div>
+              <div className="flex items-center gap-1">
+                <button
+                  type="button"
+                  className="p-2 rounded-lg hover:bg-white/10 transition-smooth"
+                  title={videoMinimized ? "Expand" : "Minimize"}
+                  onClick={() => setVideoMinimized((v) => !v)}
+                >
+                  <Minimize2 className="w-4 h-4" />
+                </button>
+                <button
+                  type="button"
+                  className="p-2 rounded-lg hover:bg-white/10 transition-smooth"
+                  title="Leave call"
+                  onClick={() => void leaveCallForMe()}
+                >
+                  <PhoneOff className="w-4 h-4" />
+                </button>
+              </div>
+            </div>
+
+            {!videoMinimized && (
+              <div className="p-3 h-[calc(100%-40px)] flex flex-col relative">
+                <div className="flex-1 min-h-0 relative">
+                  {showGridLayout ? (
+                    <div className="h-full grid grid-cols-2 gap-3">
+                      {remoteStreams.map((r) => (
+                        <div key={r.userId} className="relative rounded-2xl overflow-hidden bg-black/30 border border-white/10">
+                          <video
+                            autoPlay
+                            playsInline
+                            className="absolute inset-0 w-full h-full object-cover"
+                            ref={(el) => attachStream(el, r.stream)}
+                          />
+                          <button
+                            type="button"
+                            className="absolute top-2 right-2 p-2 rounded-xl bg-black/30 hover:bg-black/40 text-white transition-smooth"
+                            title={pinnedUserId === r.userId ? "Unpin" : "Pin"}
+                            onClick={() => setPinnedUserId((prev) => (prev === r.userId ? null : r.userId))}
+                          >
+                            <Pin className="w-4 h-4" />
+                          </button>
+                        </div>
+                      ))}
+                      <div className="relative rounded-2xl overflow-hidden bg-black/30 border border-white/10">
+                        <video
+                          autoPlay
+                          playsInline
+                          muted
+                          className="absolute inset-0 w-full h-full object-cover"
+                          ref={(el) => attachStream(el, localStreamRef.current)}
+                        />
+                        <div className="absolute bottom-2 left-2 text-[11px] px-2 py-1 rounded-lg bg-black/30 text-white">You</div>
+                      </div>
+                    </div>
+                  ) : (
+                    <div className="h-full relative rounded-2xl overflow-hidden bg-black/30 border border-white/10">
+                      {mainRemoteStream ? (
+                        <video
+                          autoPlay
+                          playsInline
+                          className="absolute inset-0 w-full h-full object-cover"
+                          ref={(el) => attachStream(el, mainRemoteStream)}
+                        />
+                      ) : (
+                        <div className="absolute inset-0 flex items-center justify-center text-sm text-muted-foreground">
+                          Waiting for others…
+                        </div>
+                      )}
+
+                      <div className="absolute left-3 bottom-3 w-[38%] max-w-[180px] aspect-video rounded-2xl overflow-hidden bg-black/30 border border-white/10">
+                        <video
+                          ref={localVideoRef}
+                          autoPlay
+                          playsInline
+                          muted
+                          className="absolute inset-0 w-full h-full object-cover"
+                        />
+                        <div className="absolute bottom-2 left-2 text-[11px] px-2 py-1 rounded-lg bg-black/30 text-white">You</div>
+                      </div>
+                    </div>
+                  )}
+                </div>
+
+                {!showGridLayout && otherRemoteStreams.length > 0 && (
+                  <div className="mt-3 flex items-center gap-2 overflow-x-auto scrollbar-hidden">
+                    {otherRemoteStreams.map((r) => (
+                      <button
+                        key={r.userId}
+                        type="button"
+                        className="relative shrink-0 w-28 aspect-video rounded-xl overflow-hidden bg-black/30 border border-white/10"
+                        onClick={() => setPinnedUserId((prev) => (prev === r.userId ? null : r.userId))}
+                        title="Pin"
+                      >
+                        <video
+                          autoPlay
+                          playsInline
+                          className="absolute inset-0 w-full h-full object-cover"
+                          ref={(el) => attachStream(el, r.stream)}
+                        />
+                        <div className="absolute top-2 right-2 p-1.5 rounded-lg bg-black/30 text-white">
+                          <Pin className="w-3.5 h-3.5" />
+                        </div>
+                      </button>
+                    ))}
+                  </div>
+                )}
+
+                <div className="mt-3 flex items-center justify-end gap-3">
+                  <button
+                    type="button"
+                    className={cn(
+                      "w-14 h-14 rounded-full flex items-center justify-center transition-smooth",
+                      "border border-white/20",
+                      videoMicMuted ? "bg-black/35 text-white" : "bg-white/20 text-white"
+                    )}
+                    title={videoMicMuted ? "Turn mic on" : "Turn mic off"}
+                    onClick={() => setVideoMicMuted((v) => !v)}
+                  >
+                    {videoMicMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
+                  </button>
+
+                  <button
+                    type="button"
+                    className={cn(
+                      "w-14 h-14 rounded-full flex items-center justify-center transition-smooth",
+                      "border border-white/20",
+                      videoCamOff ? "bg-black/35 text-white" : "bg-white/20 text-white"
+                    )}
+                    title={videoCamOff ? "Turn camera on" : "Turn camera off"}
+                    onClick={() => setVideoCamOff((v) => !v)}
+                  >
+                    {videoCamOff ? <CameraOff className="w-6 h-6" /> : <Camera className="w-6 h-6" />}
+                  </button>
+                </div>
+
+                <button
+                  type="button"
+                  className={cn(
+                    "absolute right-2 bottom-2",
+                    "w-12 h-12",
+                    "rounded-2xl",
+                    "bg-transparent",
+                    "transition-smooth",
+                    "cursor-se-resize",
+                    "group"
+                  )}
+                  title="Resize"
+                  aria-label="Resize"
+                  onPointerDown={(e) => {
+                    e.stopPropagation();
+                    videoResizeRef.current = {
+                      active: true,
+                      startX: e.clientX,
+                      startY: e.clientY,
+                      baseW: videoPanel.w,
+                      baseH: videoPanel.h,
+                    };
+                    try {
+                      (e.currentTarget as HTMLButtonElement).setPointerCapture(e.pointerId);
+                    } catch {
+                    }
+                  }}
+                >
+                  <span
+                    className={cn(
+                      "pointer-events-none absolute right-1.5 bottom-1.5",
+                      "w-7 h-7",
+                      "rounded-br-2xl",
+                      "border-r-[6px] border-b-[6px]",
+                      "border-white/70 group-hover:border-white/90",
+                      "shadow-[0_0_0_1px_rgba(0,0,0,0.10)]"
+                    )}
+                  />
+                </button>
+              </div>
+            )}
+
+            {videoMinimized && (
+              <div className="px-3 py-2 flex items-center justify-between">
+                <div className="text-xs text-muted-foreground">{remoteStreams.length} connected</div>
+                <div className="flex items-center gap-2">
+                  <button
+                    type="button"
+                    className={cn(
+                      "w-10 h-10 rounded-full flex items-center justify-center transition-smooth",
+                      "border border-white/20",
+                      videoMicMuted ? "bg-black/35 text-white" : "bg-white/20 text-white"
+                    )}
+                    title={videoMicMuted ? "Turn mic on" : "Turn mic off"}
+                    onClick={() => setVideoMicMuted((v) => !v)}
+                  >
+                    {videoMicMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
+                  </button>
+                  <button
+                    type="button"
+                    className={cn(
+                      "w-10 h-10 rounded-full flex items-center justify-center transition-smooth",
+                      "border border-white/20",
+                      videoCamOff ? "bg-black/35 text-white" : "bg-white/20 text-white"
+                    )}
+                    title={videoCamOff ? "Turn camera on" : "Turn camera off"}
+                    onClick={() => setVideoCamOff((v) => !v)}
+                  >
+                    {videoCamOff ? <CameraOff className="w-5 h-5" /> : <Camera className="w-5 h-5" />}
+                  </button>
+                </div>
+              </div>
+            )}
+          </div>
+        </div>
+      )}
 
       {/* Video Player */}
       <div ref={videoContainerRef} className="flex-1 bg-background flex items-center justify-center relative">
