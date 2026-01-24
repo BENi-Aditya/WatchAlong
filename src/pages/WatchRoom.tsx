@@ -240,6 +240,7 @@ const WatchRoom = () => {
    const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
    const [remoteStreams, setRemoteStreams] = useState<Array<{ userId: string; stream: MediaStream }>>([]);
    const localVideoRef = useRef<HTMLVideoElement | null>(null);
+   const audioTransceiversRef = useRef<Map<string, RTCRtpTransceiver>>(new Map());
 
   const participants = presence.map((p) => ({
     key: `${p.userId}-${p.updatedMs}`,
@@ -341,12 +342,19 @@ const WatchRoom = () => {
    };
 
    const replaceOutgoingAudioTrack = async (next: MediaStreamTrack | null) => {
-     for (const pc of peerConnectionsRef.current.values()) {
+     for (const [peerUserId, pc] of peerConnectionsRef.current.entries()) {
        try {
-         for (const t of pc.getTransceivers()) {
-           if (t.receiver?.track?.kind === "audio") {
-             await t.sender.replaceTrack(next);
-           }
+         const known = audioTransceiversRef.current.get(peerUserId);
+         if (known?.sender) {
+           await known.sender.replaceTrack(next);
+           continue;
+         }
+
+         const fallback = pc
+           .getTransceivers()
+           .find((t) => t?.sender?.track?.kind === "audio" || t?.receiver?.track?.kind === "audio");
+         if (fallback?.sender) {
+           await fallback.sender.replaceTrack(next);
          }
        } catch {
        }
@@ -387,6 +395,7 @@ const WatchRoom = () => {
    const closePeer = (peerUserId: string) => {
      const pc = peerConnectionsRef.current.get(peerUserId);
      peerConnectionsRef.current.delete(peerUserId);
+     audioTransceiversRef.current.delete(peerUserId);
      if (pc) {
        try {
          pc.ontrack = null;
@@ -408,7 +417,13 @@ const WatchRoom = () => {
      peerConnectionsRef.current.set(peerUserId, pc);
 
      try {
-       pc.addTransceiver("audio", { direction: "sendrecv" });
+       const t = pc.addTransceiver("audio", { direction: "sendrecv" });
+       audioTransceiversRef.current.set(peerUserId, t);
+     } catch {
+     }
+
+     try {
+       pc.addTransceiver("video", { direction: "sendrecv" });
      } catch {
      }
 
@@ -438,9 +453,19 @@ const WatchRoom = () => {
      };
 
      pc.ontrack = (e) => {
-       const stream = e.streams?.[0];
-       if (!stream) return;
-       remoteStreamsRef.current.set(peerUserId, stream);
+       const track = e.track;
+       if (!track) return;
+
+       const existingStream = remoteStreamsRef.current.get(peerUserId);
+       const stream = existingStream || new MediaStream();
+       if (!existingStream) remoteStreamsRef.current.set(peerUserId, stream);
+
+       try {
+         const alreadyHas = stream.getTracks().some((t) => t.id === track.id);
+         if (!alreadyHas) stream.addTrack(track);
+       } catch {
+       }
+
        updateRemoteStreamsState();
      };
 
