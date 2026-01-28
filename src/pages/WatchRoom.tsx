@@ -239,11 +239,13 @@ const WatchRoom = () => {
    const localAudioTrackRef = useRef<MediaStreamTrack | null>(null);
    const peerConnectionsRef = useRef<Map<string, RTCPeerConnection>>(new Map());
    const remoteStreamsRef = useRef<Map<string, MediaStream>>(new Map());
-   const [remoteStreams, setRemoteStreams] = useState<Array<{ userId: string; stream: MediaStream }>>([]);
-   const localVideoRef = useRef<HTMLVideoElement | null>(null);
-   const audioTransceiversRef = useRef<Map<string, RTCRtpTransceiver>>(new Map());
-   const pendingIceRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
-   const makingOfferRef = useRef<Map<string, boolean>>(new Map());
+  const [remoteStreams, setRemoteStreams] = useState<Array<{ userId: string; stream: MediaStream }>>([]);
+  const localVideoRef = useRef<HTMLVideoElement | null>(null);
+  const audioTransceiversRef = useRef<Map<string, RTCRtpTransceiver>>(new Map());
+  const videoTransceiversRef = useRef<Map<string, RTCRtpTransceiver>>(new Map());
+  const pendingIceRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+  const makingOfferRef = useRef<Map<string, boolean>>(new Map());
+  const remoteAudioElsRef = useRef<Map<string, HTMLAudioElement>>(new Map());
 
   const participants = presence.map((p) => ({
     key: `${p.userId}-${p.updatedMs}`,
@@ -259,9 +261,24 @@ const WatchRoom = () => {
 
   const avatarByUserId = new Map(presence.map((p) => [p.userId, p.avatarUrl] as const));
 
-  const attachStream = (el: HTMLVideoElement | null, stream: MediaStream | null) => {
+  const attachStream = (el: HTMLMediaElement | null, stream: MediaStream | null) => {
     if (!el || !stream) return;
-    if ((el as any).srcObject !== stream) (el as any).srcObject = stream;
+    if ((el as any).srcObject !== stream) {
+      (el as any).srcObject = stream;
+      try {
+        el.play?.();
+      } catch {
+      }
+    }
+  };
+
+  const kickRemoteAudioPlayback = () => {
+    for (const el of remoteAudioElsRef.current.values()) {
+      try {
+        el.play?.();
+      } catch {
+      }
+    }
   };
 
   const initialsFor = (name: string) => {
@@ -411,13 +428,14 @@ const WatchRoom = () => {
    }, [videoCamOff]);
 
    const closePeer = (peerUserId: string) => {
-     const pc = peerConnectionsRef.current.get(peerUserId);
-     peerConnectionsRef.current.delete(peerUserId);
-     audioTransceiversRef.current.delete(peerUserId);
-     pendingIceRef.current.delete(peerUserId);
-     if (pc) {
-       try {
-         pc.ontrack = null;
+    const pc = peerConnectionsRef.current.get(peerUserId);
+    peerConnectionsRef.current.delete(peerUserId);
+    audioTransceiversRef.current.delete(peerUserId);
+    videoTransceiversRef.current.delete(peerUserId);
+    pendingIceRef.current.delete(peerUserId);
+    if (pc) {
+      try {
+        pc.ontrack = null;
          pc.onicecandidate = null;
          pc.onconnectionstatechange = null;
          pc.close();
@@ -429,30 +447,33 @@ const WatchRoom = () => {
    };
 
    const createPeerConnection = async (peerUserId: string) => {
-     const existing = peerConnectionsRef.current.get(peerUserId);
-     if (existing) return existing;
+    const existing = peerConnectionsRef.current.get(peerUserId);
+    if (existing) return existing;
 
-     const pc = new RTCPeerConnection({ iceServers: getIceServers() });
-     peerConnectionsRef.current.set(peerUserId, pc);
-
-     try {
-       const t = pc.addTransceiver("audio", { direction: "sendrecv" });
-       audioTransceiversRef.current.set(peerUserId, t);
-     } catch {
-     }
+    const pc = new RTCPeerConnection({ iceServers: getIceServers() });
+    peerConnectionsRef.current.set(peerUserId, pc);
 
      try {
-       pc.addTransceiver("video", { direction: "sendrecv" });
-     } catch {
-     }
+      const t = pc.addTransceiver("audio", { direction: "sendrecv" });
+      audioTransceiversRef.current.set(peerUserId, t);
+    } catch {
+    }
 
-     const local = await ensureLocalVideoStream();
-     for (const track of local.getVideoTracks()) {
-       try {
-         pc.addTrack(track, local);
-       } catch {
-       }
-     }
+    try {
+      const t = pc.addTransceiver("video", { direction: "sendrecv" });
+      videoTransceiversRef.current.set(peerUserId, t);
+    } catch {
+    }
+
+    const local = await ensureLocalVideoStream();
+    const videoTrack = local.getVideoTracks()[0] || null;
+    const videoTx = videoTransceiversRef.current.get(peerUserId);
+    if (videoTx?.sender) {
+      try {
+        await videoTx.sender.replaceTrack(videoTrack);
+      } catch {
+      }
+    }
 
      pc.onicecandidate = (e) => {
        const candidate = e.candidate;
@@ -1495,6 +1516,10 @@ const WatchRoom = () => {
      if (!el || !stream) return;
      if ((el as any).srcObject !== stream) {
        (el as any).srcObject = stream;
+       try {
+         el.play?.();
+       } catch {
+       }
      }
    }, [inVideoCall]);
 
@@ -2405,6 +2430,20 @@ const WatchRoom = () => {
 
             {!videoMinimized && (
               <div className="p-3 h-[calc(100%-40px)] flex flex-col relative">
+                <div className="hidden">
+                  {remoteStreams.map((r) => (
+                    <audio
+                      key={`aud-${r.userId}`}
+                      autoPlay
+                      playsInline
+                      ref={(el) => {
+                        if (el) remoteAudioElsRef.current.set(r.userId, el);
+                        else remoteAudioElsRef.current.delete(r.userId);
+                        attachStream(el, r.stream);
+                      }}
+                    />
+                  ))}
+                </div>
                 <div className="flex-1 min-h-0 relative">
                   {showGridLayout ? (
                     <div className="h-full grid grid-cols-2 gap-3">
@@ -2413,6 +2452,7 @@ const WatchRoom = () => {
                           <video
                             autoPlay
                             playsInline
+                            muted
                             className="absolute inset-0 w-full h-full object-cover"
                             ref={(el) => attachStream(el, r.stream)}
                           />
@@ -2443,6 +2483,7 @@ const WatchRoom = () => {
                         <video
                           autoPlay
                           playsInline
+                          muted
                           className="absolute inset-0 w-full h-full object-cover"
                           ref={(el) => {
                             mainRemoteVideoRef.current = el;
@@ -2553,6 +2594,7 @@ const WatchRoom = () => {
                         <video
                           autoPlay
                           playsInline
+                          muted
                           className="absolute inset-0 w-full h-full object-cover"
                           ref={(el) => attachStream(el, r.stream)}
                         />
@@ -2573,7 +2615,11 @@ const WatchRoom = () => {
                       videoMicMuted ? "bg-black/35 text-white" : "bg-white/20 text-white"
                     )}
                     title={videoMicMuted ? "Turn mic on" : "Turn mic off"}
-                    onClick={() => setVideoMicMuted((v) => !v)}
+                    onClick={() => {
+                      const next = !videoMicMuted;
+                      setVideoMicMuted(next);
+                      if (!next) kickRemoteAudioPlayback();
+                    }}
                   >
                     {videoMicMuted ? <MicOff className="w-6 h-6" /> : <Mic className="w-6 h-6" />}
                   </button>
@@ -2646,7 +2692,11 @@ const WatchRoom = () => {
                       videoMicMuted ? "bg-black/35 text-white" : "bg-white/20 text-white"
                     )}
                     title={videoMicMuted ? "Turn mic on" : "Turn mic off"}
-                    onClick={() => setVideoMicMuted((v) => !v)}
+                    onClick={() => {
+                      const next = !videoMicMuted;
+                      setVideoMicMuted(next);
+                      if (!next) kickRemoteAudioPlayback();
+                    }}
                   >
                     {videoMicMuted ? <MicOff className="w-5 h-5" /> : <Mic className="w-5 h-5" />}
                   </button>
