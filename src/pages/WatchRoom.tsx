@@ -203,6 +203,7 @@ const WatchRoom = () => {
   const channelRef = useRef<RealtimeChannel | null>(null);
   const typingTimeoutRef = useRef<number | null>(null);
   const lastTypingSentMsRef = useRef<number>(0);
+  const wsConnectedRef = useRef(false);
   const playerHostRef = useRef<HTMLDivElement | null>(null);
   const playerRef = useRef<any>(null);
   const playerReadyRef = useRef(false);
@@ -241,6 +242,8 @@ const WatchRoom = () => {
    const [remoteStreams, setRemoteStreams] = useState<Array<{ userId: string; stream: MediaStream }>>([]);
    const localVideoRef = useRef<HTMLVideoElement | null>(null);
    const audioTransceiversRef = useRef<Map<string, RTCRtpTransceiver>>(new Map());
+   const pendingIceRef = useRef<Map<string, RTCIceCandidateInit[]>>(new Map());
+   const makingOfferRef = useRef<Map<string, boolean>>(new Map());
 
   const participants = presence.map((p) => ({
     key: `${p.userId}-${p.updatedMs}`,
@@ -316,13 +319,28 @@ const WatchRoom = () => {
    };
 
    const sendVideoSignal = async (signal: VideoSignal) => {
-     const channel = channelRef.current;
-     if (!channel) return;
-     try {
-       await channel.send({ type: "broadcast", event: "video", payload: signal });
-     } catch {
-     }
-   };
+    const channel = channelRef.current;
+    if (!channel) return;
+
+    const waitForReady = async () => {
+      const start = Date.now();
+      while (Date.now() - start < 3000) {
+        if (wsConnectedRef.current) return true;
+        await new Promise((r) => window.setTimeout(r, 50));
+      }
+      return false;
+    };
+
+    if (!wsConnectedRef.current) {
+      const ok = await waitForReady();
+      if (!ok) return;
+    }
+
+    try {
+      await channel.send({ type: "broadcast", event: "video", payload: signal });
+    } catch {
+    }
+  };
 
    const ensureLocalVideoStream = async () => {
      const existing = localStreamRef.current;
@@ -396,6 +414,7 @@ const WatchRoom = () => {
      const pc = peerConnectionsRef.current.get(peerUserId);
      peerConnectionsRef.current.delete(peerUserId);
      audioTransceiversRef.current.delete(peerUserId);
+     pendingIceRef.current.delete(peerUserId);
      if (pc) {
        try {
          pc.ontrack = null;
@@ -439,7 +458,7 @@ const WatchRoom = () => {
        const candidate = e.candidate;
        if (!candidate) return;
        const roomId = resolvedSessionIdRef.current;
-       const fromUserId = userIdRef.current;
+       const fromUserId = userIdRef.current || user?.id || null;
        if (!roomId || !fromUserId) return;
        void sendVideoSignal({
          kind: "video",
@@ -487,6 +506,7 @@ const WatchRoom = () => {
      try {
        await ensureLocalVideoStream();
        setInVideoCall(true);
+       inVideoCallRef.current = true;
        setVideoMinimized(false);
        setVideoMicMuted(true);
        setVideoCamOff(false);
@@ -497,24 +517,26 @@ const WatchRoom = () => {
          kind: "video",
          type: "join",
          roomId,
-         fromUserId: user.id,
+         fromUserId: userIdRef.current || user.id,
          fromUsername: user.username,
          ts: Date.now(),
        });
      } catch (e: any) {
        toast.error(e?.message ? String(e.message) : "Unable to start video");
        setInVideoCall(false);
+       inVideoCallRef.current = false;
      }
    };
 
    const leaveCallForMe = async () => {
      setInVideoCall(false);
+     inVideoCallRef.current = false;
      setVideoInviteOpen(false);
      setVideoInviteFrom(null);
      setPinnedUserId(null);
 
      const roomId = resolvedSessionIdRef.current;
-     const fromUserId = userIdRef.current;
+     const fromUserId = userIdRef.current || user?.id || null;
      if (roomId && fromUserId) {
        void sendVideoSignal({ kind: "video", type: "leave", roomId, fromUserId, ts: Date.now() });
      }
@@ -651,6 +673,10 @@ const WatchRoom = () => {
   useEffect(() => {
     userIdRef.current = user?.id || null;
   }, [user?.id]);
+
+  useEffect(() => {
+    wsConnectedRef.current = wsConnected;
+  }, [wsConnected]);
 
   useEffect(() => {
     inVideoCallRef.current = inVideoCall;
@@ -1302,7 +1328,7 @@ const WatchRoom = () => {
       const msg = payload as VideoSignal;
       if (!msg || (msg as any).kind !== "video") return;
       if (msg.roomId !== resolvedSessionIdRef.current) return;
-      const me = userIdRef.current;
+      const me = userIdRef.current || user?.id || null;
       if (!me) return;
       if (msg.fromUserId === me) return;
       if (msg.toUserId && msg.toUserId !== me) return;
@@ -1322,14 +1348,13 @@ const WatchRoom = () => {
       if (msg.type === "join") {
         if (!inVideoCallRef.current) return;
         const peerId = msg.fromUserId;
-        const shouldInitiate = String(me) < String(peerId);
-        if (!shouldInitiate) return;
         const pc = await createPeerConnection(peerId);
         try {
+          makingOfferRef.current.set(peerId, true);
           const offer = await pc.createOffer();
           await pc.setLocalDescription(offer);
           const roomId = resolvedSessionIdRef.current;
-          const fromUserId = userIdRef.current;
+          const fromUserId = userIdRef.current || user?.id || null;
           if (!roomId || !fromUserId) return;
           await sendVideoSignal({
             kind: "video",
@@ -1341,6 +1366,8 @@ const WatchRoom = () => {
             ts: Date.now(),
           });
         } catch {
+        } finally {
+          makingOfferRef.current.set(peerId, false);
         }
         return;
       }
@@ -1350,11 +1377,34 @@ const WatchRoom = () => {
         const peerId = msg.fromUserId;
         const pc = await createPeerConnection(peerId);
         try {
+          const polite = String(me) > String(peerId);
+          const makingOffer = Boolean(makingOfferRef.current.get(peerId));
+          const isCollision = makingOffer || pc.signalingState !== "stable";
+          if (isCollision) {
+            if (!polite) return;
+            try {
+              await pc.setLocalDescription({ type: "rollback" } as any);
+            } catch {
+            }
+          }
+
           await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+
+          const pending = pendingIceRef.current.get(peerId);
+          if (pending && pending.length) {
+            pendingIceRef.current.set(peerId, []);
+            for (const c of pending) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(c));
+              } catch {
+              }
+            }
+          }
+
           const answer = await pc.createAnswer();
           await pc.setLocalDescription(answer);
           const roomId = resolvedSessionIdRef.current;
-          const fromUserId = userIdRef.current;
+          const fromUserId = userIdRef.current || user?.id || null;
           if (!roomId || !fromUserId) return;
           await sendVideoSignal({
             kind: "video",
@@ -1377,6 +1427,17 @@ const WatchRoom = () => {
         if (!pc) return;
         try {
           await pc.setRemoteDescription(new RTCSessionDescription(msg.sdp));
+
+          const pending = pendingIceRef.current.get(peerId);
+          if (pending && pending.length) {
+            pendingIceRef.current.set(peerId, []);
+            for (const c of pending) {
+              try {
+                await pc.addIceCandidate(new RTCIceCandidate(c));
+              } catch {
+              }
+            }
+          }
         } catch {
         }
         return;
@@ -1387,6 +1448,14 @@ const WatchRoom = () => {
         const peerId = msg.fromUserId;
         const pc = peerConnectionsRef.current.get(peerId);
         if (!pc) return;
+
+        if (!pc.remoteDescription) {
+          const list = pendingIceRef.current.get(peerId) || [];
+          list.push(msg.candidate);
+          pendingIceRef.current.set(peerId, list);
+          return;
+        }
+
         try {
           await pc.addIceCandidate(new RTCIceCandidate(msg.candidate));
         } catch {
