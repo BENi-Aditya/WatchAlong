@@ -1,5 +1,5 @@
 import { createContext, useCallback, useContext, useEffect, useMemo, useState } from "react";
-import { supabase } from "@/lib/supabase";
+import { SUPABASE_URL, supabase } from "@/lib/supabase";
 
 export type User = {
   id: string;
@@ -66,6 +66,34 @@ async function loadProfile(userId: string) {
   };
 }
 
+async function preflightSupabase(timeoutMs = 4500) {
+  const ctrl = new AbortController();
+  const timeout = window.setTimeout(() => ctrl.abort(), timeoutMs);
+  try {
+    const url = `${String(SUPABASE_URL).replace(/\/$/, "")}/auth/v1/health`;
+    const res = await fetch(url, {
+      method: "GET",
+      signal: ctrl.signal,
+      cache: "no-store",
+      headers: {
+        Accept: "application/json",
+      },
+    });
+
+    if (!res.ok) {
+      throw new Error("Supabase is unreachable");
+    }
+  } catch (e) {
+    const msg = e instanceof Error ? e.message : "Network error";
+    if (/abort/i.test(msg)) {
+      throw new Error("Supabase is not reachable from your network (timeout). If you're in India, try switching networks or use the app's custom Supabase domain.");
+    }
+    throw new Error("Supabase is not reachable from your network. If you're in India, try switching networks or use the app's custom Supabase domain.");
+  } finally {
+    window.clearTimeout(timeout);
+  }
+}
+
 export function AuthProvider({ children }: { children: React.ReactNode }) {
   const [token, setToken] = useState<string | null>(null);
   const [user, setUser] = useState<User | null>(null);
@@ -119,6 +147,7 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
   }, [refresh]);
 
   const loginWithGoogle = useCallback(async (redirectTo: string) => {
+    await preflightSupabase();
     const { error } = await supabase.auth.signInWithOAuth({
       provider: "google",
       options: {
