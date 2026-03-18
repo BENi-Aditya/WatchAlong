@@ -6,20 +6,8 @@ import { GlassButton } from "@/components/ui/GlassButton";
 import { GlassInput } from "@/components/ui/GlassInput";
 import { ThemeToggle } from "@/components/ThemeToggle";
 import { toast } from "@/components/ui/sonner";
-import { nanoid } from "nanoid";
-import { supabase } from "@/lib/supabase";
+import { sessionApi } from "@/lib/supabase-api";
 import { useAuth } from "@/lib/auth";
-
-function createJoinCode() {
-  const alphabet = "ABCDEFGHJKLMNPQRSTUVWXYZ23456789";
-  const id = nanoid(10);
-  let code = "";
-  for (let i = 0; i < 6; i += 1) {
-    const idx = id.charCodeAt(i) % alphabet.length;
-    code += alphabet[idx];
-  }
-  return code;
-}
 
 const CreateSession = () => {
   const [youtubeUrl, setYoutubeUrl] = useState("");
@@ -37,51 +25,8 @@ const CreateSession = () => {
     setIsCreating(true);
     
     try {
-      const youtubeUrlTrim = youtubeUrl.trim();
-      const youtubeId = extractYoutubeId(youtubeUrlTrim);
-      if (!youtubeId) {
-        toast.error("Invalid YouTube URL");
-        return;
-      }
-
-      let created: { id: string; join_code: string } | null = null;
-      for (let attempt = 0; attempt < 6; attempt += 1) {
-        const joinCode = createJoinCode();
-        const { data, error } = await supabase
-          .from("sessions")
-          .insert({
-            join_code: joinCode,
-            host_user_id: user.id,
-            youtube_url: youtubeUrlTrim,
-            youtube_id: youtubeId,
-            allow_participant_control: true,
-          })
-          .select("id, join_code")
-          .single();
-
-        if (!error && data) {
-          created = data;
-          break;
-        }
-
-        const isUniqueViolation = String((error as any)?.code || "") === "23505";
-        if (!isUniqueViolation) {
-          throw new Error(error?.message || "Failed to create session");
-        }
-      }
-
-      if (!created) throw new Error("Failed to generate a unique join code");
-
-      await supabase
-        .from("session_playback")
-        .insert({
-          session_id: created.id,
-          is_playing: false,
-          position_sec: 0,
-          rate: 1,
-        });
-
-      navigate(`/room/${created.join_code}`);
+      const result = await sessionApi.create(youtubeUrl.trim());
+      navigate(`/room/${result.session.joinCode}`);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to create session";
       toast.error(message);
