@@ -152,27 +152,62 @@ export const sessionApi = {
     };
   },
 
-  // Join a session by code
+  // Join a session by code - FIXED with better error handling
   async join(joinCode: string): Promise<{ session: WatchSession; playback: PlaybackState } | null> {
-    const { data: sessionData, error: sessionError } = await supabase
+    const upperCode = joinCode.toUpperCase().trim();
+    console.log("Joining session with code:", upperCode);
+    
+    let { data: sessionData, error: sessionError } = await supabase
       .from("sessions")
       .select("*")
-      .eq("join_code", joinCode.toUpperCase())
-      .single();
+      .eq("join_code", upperCode)
+      .maybeSingle();
+    
+    console.log("Join query result:", { data: sessionData, error: sessionError });
 
-    if (sessionError || !sessionData) return null;
+    if (!sessionData) {
+        console.error("Session lookup failed. codeRaw:", joinCode, "codeUpper:", upperCode, "error:", sessionError);
+        
+        // Try one more time with just the base query
+        const { data: retryData, error: retryErr } = await supabase
+          .from("sessions")
+          .select("id, join_code, youtube_id, host_user_id, allow_participant_control")
+          .eq("join_code", upperCode)
+          .maybeSingle();
+          
+        console.log("Retry result:", { retryData, retryErr });
+        
+        if (!retryData) {
+          throw new Error("Session not found - the room may not exist or you may not have permission to view it");
+        }
+        
+        sessionData = retryData;
+      }
+    
+    if (!sessionData) {
+      console.error("No session found for code:", upperCode);
+      return null;
+    }
 
     const { data: playbackData, error: playbackError } = await supabase
       .from("session_playback")
       .select("*")
       .eq("session_id", sessionData.id)
-      .single();
+      .maybeSingle();
 
-    if (playbackError || !playbackData) return null;
+    if (playbackError) {
+      console.error("Playback lookup error:", playbackError);
+    }
 
     return {
       session: this.transformSession(sessionData),
-      playback: this.transformPlayback(playbackData),
+      playback: playbackData ? this.transformPlayback(playbackData) : {
+        sessionId: sessionData.id,
+        isPlaying: false,
+        positionSec: 0,
+        rate: 1,
+        serverTime: new Date().toISOString(),
+      },
     };
   },
 
