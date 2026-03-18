@@ -17,21 +17,36 @@ export default async function handler(req, res) {
     return res.status(200).end();
   }
   
+  // DEBUG: Log everything
+  console.log("=== DEBUG ===");
+  console.log("req.url:", req.url);
+  console.log("req.query:", JSON.stringify(req.query));
+  console.log("req.method:", req.method);
+  console.log("=============");
+  
   const SUPABASE_URL = "https://pbbxvmijtlgwdjivmgao.supabase.co";
   const supabaseHost = "pbbxvmijtlgwdjivmgao.supabase.co";
   
-  // Vercel rewrite passes the matched path as req.query.path
-  // /api/supabase/rest/v1/profiles -> req.query.path = "rest/v1/profiles"
-  const pathParam = req.query?.path || "";
-  const path = "/" + pathParam;
+  // Vercel rewrite: /api/supabase/rest/v1/profiles -> /api/supabase?path=rest/v1/profiles
+  // req.query.path = "rest/v1/profiles" (or ["rest", "v1", "profiles"] as array)
+  let path = "";
+  if (req.query?.path) {
+    const p = req.query.path;
+    path = "/" + (Array.isArray(p) ? p.join("/") : p);
+  }
   
-  // Query string
-  const queryIndex = (req.url || "").indexOf("?");
-  const query = queryIndex >= 0 ? (req.url || "").slice(queryIndex) : "";
+  // Original query params (not the path) - need to extract from req.url but exclude path= parameter
+  let query = "";
+  if (req.url && req.url.includes("?")) {
+    const urlParams = new URLSearchParams(req.url.slice(req.url.indexOf("?") + 1));
+    urlParams.delete("path"); // Remove the path parameter we added
+    const queryString = urlParams.toString();
+    if (queryString) query = "?" + queryString;
+  }
   
   const targetUrl = SUPABASE_URL + path + query;
   
-  console.log("Proxy hit:", req.method, path, "->", targetUrl);
+  console.log("Proxy:", req.method, "path:", path, "query:", query || "(none)", "->", targetUrl);
   
   try {
     const headers = {
@@ -48,6 +63,8 @@ export default async function handler(req, res) {
       body: ["GET", "HEAD"].includes(req.method) ? undefined : (typeof req.body === "string" ? req.body : JSON.stringify(req.body)),
       redirect: "manual",
     });
+    
+    console.log("Response:", response.status);
     
     response.headers.forEach((v, k) => {
       if (!["content-encoding", "transfer-encoding", "connection"].includes(k)) {
