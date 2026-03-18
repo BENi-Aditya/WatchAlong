@@ -67,6 +67,14 @@ async function loadProfile(userId: string) {
 }
 
 async function preflightSupabase(timeoutMs = 4500) {
+  // Skip preflight when using proxy - proxy bypasses ISP blocks
+  // The proxy URL indicates we're already routing through Vercel
+  const isUsingProxy = String(SUPABASE_URL).includes('/api/supabase');
+  if (isUsingProxy) {
+    console.log("Using proxy - skipping direct Supabase health check");
+    return;
+  }
+  
   const ctrl = new AbortController();
   const timeout = window.setTimeout(() => ctrl.abort(), timeoutMs);
   try {
