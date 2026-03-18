@@ -998,6 +998,7 @@ const WatchRoom = () => {
       if (!window.YT || !window.YT.Player) return;
       if (playerRef.current) return;
 
+      // Use youtube-nocookie to avoid ad-related requests being blocked
       playerRef.current = new window.YT.Player(host, {
         videoId: youtubeId,
         playerVars: {
@@ -1009,6 +1010,8 @@ const WatchRoom = () => {
           rel: 0,
           playsinline: 1,
           origin: window.location.origin,
+          // Add nocookie parameter
+          embed_config: '{"ads":false}',
         },
         events: {
           onReady: () => {
@@ -2748,7 +2751,18 @@ const WatchRoom = () => {
 
             <div className="w-full h-full rounded-2xl overflow-hidden bg-black/90 relative">
               <div className="w-full h-full object-contain relative">
-                <div ref={playerHostRef} className="w-full h-full" />
+                {/* Try iframe directly as fallback */}
+                <iframe
+                  ref={(el) => {
+                    if (el && !playerRef.current) {
+                      // Use youtube-nocookie to bypass ads
+                      el.src = `https://www.youtube-nocookie.com/embed/${youtubeId}?autoplay=0&controls=1&disablekb=1&fs=1&modestbranding=1&rel=0&playsinline=1`;
+                    }
+                  }}
+                  className="w-full h-full"
+                  allow="accelerometer; autoplay; clipboard-write; encrypted-media; gyroscope; picture-in-picture"
+                  allowFullScreen
+                />
                 <div className="absolute inset-0 pointer-events-none" />
                 {interactionRequired && (
                   <button
