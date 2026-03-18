@@ -121,7 +121,8 @@ export const sessionApi = {
       
       if (data) {
         created = data;
-        console.log("Session created successfully:", created);
+        console.log("Session created successfully, full data:", JSON.stringify(created));
+        console.log("Session id:", created.id, "Session join_code:", created.join_code);
         break;
       }
       
