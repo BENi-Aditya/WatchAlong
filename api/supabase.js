@@ -54,7 +54,7 @@ export default async function handler(req, res) {
       host: supabaseHost,
     };
     
-    for (const h of ["authorization", "apikey", "content-type", "x-client-info", "x-supabase-api-version", "cookie", "user-agent"]) {
+    for (const h of ["authorization", "apikey", "content-type", "x-client-info", "x-supabase-api-version", "cookie", "user-agent", "prefer"]) {
       if (req.headers[h]) headers[h] = req.headers[h];
     }
     
