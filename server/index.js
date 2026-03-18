@@ -112,12 +112,43 @@ function setSessionPlayback(session, next) {
 
 const app = express();
 
+const SUPABASE_URL = process.env.SUPABASE_URL || "https://your-project.supabase.co";
+
 app.use(cors({
   origin: true,
   credentials: true,
 }));
 
 app.use(express.json({ limit: "1mb" }));
+
+// Supabase Proxy Route - forwards all /api/supabase/* to Supabase
+app.all("/api/supabase/*", async (req, res) => {
+  const path = req.path.replace("/api/supabase", "");
+  const targetUrl = new URL(path + (req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : ""), SUPABASE_URL);
+  
+  try {
+    const response = await fetch(targetUrl.toString(), {
+      method: req.method,
+      headers: {
+        ...req.headers,
+        host: new URL(SUPABASE_URL).host,
+      },
+      body: ["GET", "HEAD"].includes(req.method) ? undefined : JSON.stringify(req.body),
+    });
+    
+    // Forward response headers
+    response.headers.forEach((value, key) => {
+      res.setHeader(key, value);
+    });
+    
+    res.status(response.status);
+    const data = await response.text();
+    res.send(data);
+  } catch (error) {
+    console.error("Supabase proxy error:", error);
+    res.status(502).json({ error: "Failed to reach Supabase" });
+  }
+});
 
 app.use(rateLimit({
   windowMs: 60_000,

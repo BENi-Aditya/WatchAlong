@@ -1,0 +1,14 @@
+name = "supabase-proxy"
+main = "worker/supabase-proxy.js"
+compatibility_date = "2024-01-01"
+
+[vars]
+# Replace with your actual Supabase URL
+SUPABASE_URL = "https://REPLACE_WITH_YOUR_PROJECT.supabase.co"
+
+# Or use secrets for the URL (more secure):
+# wrangler secret put SUPABASE_URL
+
+[[routes]]
+pattern = "api.yourdomain.com/*"
+custom_domain = true
