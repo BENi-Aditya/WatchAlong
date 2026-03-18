@@ -6,8 +6,16 @@ export const config = {
 };
 
 export default async function handler(req, res) {
-  // CORS
-  res.setHeader("Access-Control-Allow-Origin", req.headers.origin || "*");
+  // CORS - MUST use exact origin when credentials are involved, never wildcard
+  const allowedOrigins = [
+    "https://watch-along.vercel.app",
+    "http://localhost:5173",
+    "http://localhost:3000",
+  ];
+  const origin = req.headers.origin || "";
+  const corsOrigin = allowedOrigins.includes(origin) ? origin : allowedOrigins[0];
+  
+  res.setHeader("Access-Control-Allow-Origin", corsOrigin);
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
   res.setHeader("Access-Control-Allow-Headers", "authorization, apikey, content-type, x-client-info, x-supabase-api-version, x-request-id, accept, accept-language, cookie, referer, user-agent, x-xsrf-token");
@@ -16,13 +24,6 @@ export default async function handler(req, res) {
   if (req.method === "OPTIONS") {
     return res.status(200).end();
   }
-  
-  // DEBUG: Log everything
-  console.log("=== DEBUG ===");
-  console.log("req.url:", req.url);
-  console.log("req.query:", JSON.stringify(req.query));
-  console.log("req.method:", req.method);
-  console.log("=============");
   
   const SUPABASE_URL = "https://pbbxvmijtlgwdjivmgao.supabase.co";
   const supabaseHost = "pbbxvmijtlgwdjivmgao.supabase.co";
