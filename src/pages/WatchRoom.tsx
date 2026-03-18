@@ -1024,6 +1024,10 @@ const WatchRoom = () => {
             const st = lastServerStateRef.current;
             if (st) reconcileToServer(st);
           },
+          onError: (event: any) => {
+            console.error("YouTube player error:", event.data);
+            // Error codes: 2=invalid video ID, 5=HTML5 player error, 100=video not found, 150=restricted
+          },
           onStateChange: (event: any) => {
             const d = Number(playerRef.current?.getDuration?.());
             if (Number.isFinite(d) && d > 0) setDurationSec(d);
