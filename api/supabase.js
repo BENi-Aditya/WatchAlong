@@ -14,18 +14,19 @@ export default async function handler(req, res) {
   const SUPABASE_URL = process.env.SUPABASE_URL || "https://pbbxvmijtlgwdjivmgao.supabase.co";
   const supabaseHost = new URL(SUPABASE_URL).host;
   
-  // Vercel catch-all [...path] puts path segments in req.query.path as array
-  // e.g., /api/supabase/rest/v1/profiles -> req.query.path = ["rest", "v1", "profiles"]
-  let path = "";
-  if (req.query && req.query.path) {
-    const segments = Array.isArray(req.query.path) ? req.query.path : [req.query.path];
-    path = "/" + segments.join("/");
+  // Extract path from req.url
+  // req.url is like "/rest/v1/profiles?on_conflict=id"
+  let fullPath = req.url || "";
+  
+  // Remove leading slash if present
+  if (fullPath.startsWith("/")) {
+    fullPath = fullPath.slice(1);
   }
   
-  // Query string is in req.url after the ?
-  const urlStr = req.url || "";
-  const queryIndex = urlStr.indexOf("?");
-  const query = queryIndex >= 0 ? urlStr.slice(queryIndex) : "";
+  // Split path and query
+  const queryIndex = fullPath.indexOf("?");
+  const path = queryIndex >= 0 ? "/" + fullPath.slice(0, queryIndex) : "/" + fullPath;
+  const query = queryIndex >= 0 ? fullPath.slice(queryIndex) : "";
   
   const targetUrl = SUPABASE_URL + path + query;
   
