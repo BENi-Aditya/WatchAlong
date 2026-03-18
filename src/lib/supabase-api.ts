@@ -141,10 +141,17 @@ export const sessionApi = {
     console.log("Playback creation result:", { data: playbackData, error: playbackError });
 
     if (playbackError) {
+      console.error("Playback creation failed, cleaning up session:", playbackError);
       // Clean up session if playback creation failed
-      await supabase.from("sessions").delete().eq("id", created.id);
-      throw new Error(playbackError.message);
+      try {
+        await supabase.from("sessions").delete().eq("id", created.id);
+      } catch (cleanupErr) {
+        console.error("Session cleanup also failed:", cleanupErr);
+      }
+      throw new Error(`Playback setup failed: ${playbackError.message || JSON.stringify(playbackError)}`);
     }
+
+    console.log("Session and playback created successfully!");
 
     return {
       session: this.transformSession(created),
