@@ -22,35 +22,43 @@ type AuthContextValue = {
 const AuthContext = createContext<AuthContextValue | null>(null);
 
 async function ensureProfile() {
-  const { data } = await supabase.auth.getUser();
-  const authUser = data.user;
-  if (!authUser) return null;
+  try {
+    const { data } = await supabase.auth.getUser();
+    const authUser = data.user;
+    if (!authUser) return null;
 
-  const meta = (authUser.user_metadata || {}) as Record<string, unknown>;
-  const usernameFromMeta = typeof meta.username === "string" ? meta.username : null;
-  const nameFromMeta =
-    (typeof meta.full_name === "string" ? meta.full_name : null) ||
-    (typeof meta.name === "string" ? meta.name : null);
-  const emailFromMeta = typeof meta.email === "string" ? meta.email : null;
-  const emailPrefix = (emailFromMeta || authUser.email || "").split("@")[0] || null;
-  const fallbackUsername = `Guest ${authUser.id.slice(0, 5)}`;
-  const desiredUsername = usernameFromMeta || nameFromMeta || emailPrefix || fallbackUsername;
+    const meta = (authUser.user_metadata || {}) as Record<string, unknown>;
+    const usernameFromMeta = typeof meta.username === "string" ? meta.username : null;
+    const nameFromMeta =
+      (typeof meta.full_name === "string" ? meta.full_name : null) ||
+      (typeof meta.name === "string" ? meta.name : null);
+    const emailFromMeta = typeof meta.email === "string" ? meta.email : null;
+    const emailPrefix = (emailFromMeta || authUser.email || "").split("@")[0] || null;
+    const fallbackUsername = `Guest ${authUser.id.slice(0, 5)}`;
+    const desiredUsername = usernameFromMeta || nameFromMeta || emailPrefix || fallbackUsername;
 
-  const avatarFromMeta =
-    (typeof meta.avatar_url === "string" ? meta.avatar_url : null) ||
-    (typeof meta.picture === "string" ? meta.picture : null);
+    const avatarFromMeta =
+      (typeof meta.avatar_url === "string" ? meta.avatar_url : null) ||
+      (typeof meta.picture === "string" ? meta.picture : null);
 
-  const { error } = await supabase.from("profiles").upsert({
-    id: authUser.id,
-    username: desiredUsername,
-    avatar_url: avatarFromMeta,
-  }, { onConflict: "id" });
+    console.log("Ensuring profile for user:", authUser.id, "username:", desiredUsername);
 
-  if (error) {
-    throw new Error(error.message);
+    const { error } = await supabase.from("profiles").upsert({
+      id: authUser.id,
+      username: desiredUsername,
+      avatar_url: avatarFromMeta,
+    }, { onConflict: "id" });
+
+    if (error) {
+      console.error("Profile upsert error:", error);
+      // Don't throw - just log and continue
+    }
+
+    return authUser;
+  } catch (e) {
+    console.error("ensureProfile error:", e);
+    return null;
   }
-
-  return authUser;
 }
 
 async function loadProfile(userId: string) {
@@ -109,23 +117,42 @@ export function AuthProvider({ children }: { children: React.ReactNode }) {
 
   const refresh = useCallback(async () => {
     try {
+      console.log("Auth refresh: getting session...");
       const { data: sessionRes } = await supabase.auth.getSession();
       const session = sessionRes.session;
+      console.log("Auth refresh: session =", session ? "found" : "not found");
+      
       setToken(session?.access_token || null);
       if (!session?.user) {
         setUser(null);
+        setIsLoading(false);
         return;
       }
 
-      await ensureProfile();
-      const profile = await loadProfile(session.user.id);
+      // Try to ensure profile exists, but don't fail auth if it does
+      try {
+        await ensureProfile();
+      } catch (profileErr) {
+        console.error("Profile creation failed, continuing anyway:", profileErr);
+      }
+
+      // Load profile, use fallbacks if it fails
+      let profile = { username: `User ${session.user.id.slice(0, 5)}`, avatarUrl: null };
+      try {
+        profile = await loadProfile(session.user.id);
+      } catch (loadErr) {
+        console.error("Profile load failed, using fallback:", loadErr);
+      }
+      
       setUser({
         id: session.user.id,
         email: session.user.email || "",
         username: profile.username,
         avatarUrl: profile.avatarUrl,
       });
-    } catch {
+      console.log("Auth refresh: user set successfully");
+    } catch (e) {
+      console.error("Auth refresh failed:", e);
       setToken(null);
       setUser(null);
     } finally {

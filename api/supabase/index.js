@@ -4,7 +4,7 @@ export default async function handler(req, res) {
   res.setHeader("Access-Control-Allow-Origin", origin);
   res.setHeader("Access-Control-Allow-Credentials", "true");
   res.setHeader("Access-Control-Allow-Methods", "GET, POST, PUT, DELETE, PATCH, OPTIONS");
-  res.setHeader("Access-Control-Allow-Headers", "authorization, apikey, content-type, x-client-info, x-supabase-api-version, x-request-id, accept, accept-language, cookie, referer");
+  res.setHeader("Access-Control-Allow-Headers", "authorization, apikey, content-type, x-client-info, x-supabase-api-version, x-request-id, accept, accept-language, cookie, referer, user-agent, x-xsrf-token");
   res.setHeader("Access-Control-Expose-Headers", "*");
   
   // Handle preflight
@@ -20,6 +20,8 @@ export default async function handler(req, res) {
   const query = req.url.includes("?") ? req.url.slice(req.url.indexOf("?")) : "";
   const targetUrl = SUPABASE_URL + path + query;
   
+  console.log("Proxy request:", req.method, req.url, "->", targetUrl);
+  
   try {
     // Forward all headers from the original request
     const headers = {};
@@ -34,7 +36,8 @@ export default async function handler(req, res) {
       "accept-language",
       "cookie",
       "referer",
-      "user-agent"
+      "user-agent",
+      "x-xsrf-token"
     ];
     
     for (const h of forwardHeaders) {
@@ -46,12 +49,22 @@ export default async function handler(req, res) {
     // Ensure host header is set to Supabase
     headers.host = supabaseHost;
     
+    // Handle body correctly - Vercel parses JSON automatically
+    let body = undefined;
+    if (!["GET", "HEAD"].includes(req.method)) {
+      if (req.body) {
+        body = typeof req.body === "string" ? req.body : JSON.stringify(req.body);
+      }
+    }
+    
     const response = await fetch(targetUrl, {
       method: req.method,
       headers,
-      body: ["GET", "HEAD"].includes(req.method) ? undefined : JSON.stringify(req.body),
+      body,
       redirect: "manual", // Don't auto-follow redirects
     });
+    
+    console.log("Proxy response:", response.status, response.statusText);
     
     // Forward response headers (except problematic ones)
     response.headers.forEach((value, key) => {
@@ -59,6 +72,18 @@ export default async function handler(req, res) {
         res.setHeader(key, value);
       }
     });
+    
+    // Forward Set-Cookie headers explicitly
+    const setCookie = response.headers.get("set-cookie");
+    if (setCookie) {
+      // Rewrite cookie domain from supabase.co to our domain
+      const rewrittenCookies = setCookie
+        .split(/,(?=\s*[a-zA-Z]+=)/) // Split on cookie boundaries
+        .map(cookie => cookie.replace(/Domain=[^;]+;?/gi, ""))
+        .join(", ");
+      res.setHeader("set-cookie", rewrittenCookies);
+      console.log("Set-Cookie:", rewrittenCookies);
+    }
     
     // Handle redirects - rewrite location to use proxy URL
     if (response.status >= 300 && response.status < 400) {
@@ -69,6 +94,7 @@ export default async function handler(req, res) {
         if (location.includes("supabase.co") || location.includes(supabaseHost)) {
           newLocation = location.replace(SUPABASE_URL, "https://watch-along.vercel.app/api/supabase");
         }
+        console.log("Redirect:", location, "->", newLocation);
         res.setHeader("location", newLocation);
       }
     }
