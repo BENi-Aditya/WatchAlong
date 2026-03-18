@@ -120,9 +120,17 @@ export const sessionApi = {
       }
       
       if (data) {
-        created = data;
+        // Handle different response formats - could be array or single object
+        const sessionData = Array.isArray(data) ? data[0] : data;
+        created = sessionData;
         console.log("Session created successfully, full data:", JSON.stringify(created));
-        console.log("Session id:", created.id, "Session join_code:", created.join_code);
+        console.log("Session id:", created?.id || created?.session_id, "Session join_code:", created?.join_code || created?.joinCode);
+        
+        // Use id or session_id depending on response format
+        if (!created?.id && !created?.session_id) {
+          console.error("Session response has no id field!", created);
+          throw new Error("Session created but response has no ID");
+        }
         break;
       }
       
@@ -131,13 +139,15 @@ export const sessionApi = {
 
     if (!created) throw new Error("Failed to generate a unique join code");
 
-    console.log("Creating playback for session:", created.id);
+    // Get the correct id - could be id or session_id
+    const sessionId = created.id || created.session_id;
+    console.log("Creating playback for session:", sessionId);
 
     // Create initial playback state
     const { data: playbackData, error: playbackError } = await supabase
       .from("session_playback")
       .insert({
-        session_id: created.id,
+        session_id: sessionId,
         is_playing: false,
         position_sec: 0,
         rate: 1,
