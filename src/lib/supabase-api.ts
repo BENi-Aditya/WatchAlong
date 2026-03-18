@@ -107,19 +107,25 @@ export const sessionApi = {
         .select()
         .single();
 
-      console.log("Session insert result:", { data, error });
+      console.log("Session insert result - data:", data, "error:", error);
 
-      if (!error && data) {
+      if (error) {
+        const isUniqueViolation = String((error as any)?.code || "") === "23505";
+        console.log("Insert error code:", (error as any)?.code, "Is unique violation:", isUniqueViolation);
+        if (!isUniqueViolation) {
+          throw new Error(`Session insert failed: ${error.message || JSON.stringify(error)}`);
+        }
+        // Continue to next attempt for unique violation
+        continue;
+      }
+      
+      if (data) {
         created = data;
         console.log("Session created successfully:", created);
         break;
       }
-
-      const isUniqueViolation = String((error as any)?.code || "") === "23505";
-      console.log("Insert error:", error, "Is unique violation:", isUniqueViolation);
-      if (!isUniqueViolation) {
-        throw new Error(error?.message || "Failed to create session");
-      }
+      
+      console.log("No error but also no data - this shouldn't happen");
     }
 
     if (!created) throw new Error("Failed to generate a unique join code");
