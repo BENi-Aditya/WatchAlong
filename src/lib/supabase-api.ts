@@ -80,16 +80,20 @@ export interface Presence {
 export const sessionApi = {
   // Create a new watch session
   async create(youtubeUrl: string): Promise<{ session: WatchSession; playback: PlaybackState }> {
+    console.log("sessionApi.create called with:", youtubeUrl);
     const youtubeId = extractYoutubeId(youtubeUrl);
     if (!youtubeId) throw new Error("Invalid YouTube URL");
 
     const { data: userData } = await supabase.auth.getUser();
     if (!userData.user) throw new Error("Not authenticated");
+    
+    console.log("Creating session for user:", userData.user.id, "with youtubeId:", youtubeId);
 
     // Try to create with unique join code
     let created = null;
     for (let attempt = 0; attempt < 6; attempt += 1) {
       const joinCode = createJoinCode();
+      console.log(`Attempt ${attempt + 1}: trying join code ${joinCode}`);
       
       const { data, error } = await supabase
         .from("sessions")
@@ -103,18 +107,24 @@ export const sessionApi = {
         .select()
         .single();
 
+      console.log("Session insert result:", { data, error });
+
       if (!error && data) {
         created = data;
+        console.log("Session created successfully:", created);
         break;
       }
 
       const isUniqueViolation = String((error as any)?.code || "") === "23505";
+      console.log("Insert error:", error, "Is unique violation:", isUniqueViolation);
       if (!isUniqueViolation) {
         throw new Error(error?.message || "Failed to create session");
       }
     }
 
     if (!created) throw new Error("Failed to generate a unique join code");
+
+    console.log("Creating playback for session:", created.id);
 
     // Create initial playback state
     const { data: playbackData, error: playbackError } = await supabase
@@ -127,6 +137,8 @@ export const sessionApi = {
       })
       .select()
       .single();
+
+    console.log("Playback creation result:", { data: playbackData, error: playbackError });
 
     if (playbackError) {
       // Clean up session if playback creation failed

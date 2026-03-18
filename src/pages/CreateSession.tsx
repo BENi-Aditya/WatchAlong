@@ -25,10 +25,14 @@ const CreateSession = () => {
     setIsCreating(true);
     
     try {
+      console.log("Creating session with URL:", youtubeUrl.trim());
+      console.log("User:", user);
       const result = await sessionApi.create(youtubeUrl.trim());
+      console.log("Session created:", result);
       navigate(`/room/${result.session.joinCode}`);
     } catch (e) {
       const message = e instanceof Error ? e.message : "Failed to create session";
+      console.error("Session creation failed:", e);
       toast.error(message);
     } finally {
       setIsCreating(false);

@@ -819,11 +819,13 @@ const WatchRoom = () => {
   useEffect(() => {
     const run = async () => {
       if (!sessionId) return;
+      console.log("Looking up session:", sessionId);
       try {
         const codeRaw = String(sessionId || "").trim();
         const codeUpper = codeRaw.toUpperCase();
 
         const isUuid = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i.test(codeRaw);
+        console.log("Session lookup details:", { codeRaw, codeUpper, isUuid });
 
         const baseSelect = "id, join_code, youtube_id, host_user_id, allow_participant_control";
         const selectWithPlaylist = `${baseSelect}, playlist_id, playlist_index, playlist_video_ids`;
@@ -836,6 +838,8 @@ const WatchRoom = () => {
           ? firstQuery.eq("id", codeRaw)
           : firstQuery.eq("join_code", codeUpper)
         ).maybeSingle();
+
+        console.log("First query result:", { data: first.data, error: first.error });
 
         sessionRow = first.data;
         sessionErr = first.error;
@@ -855,7 +859,10 @@ const WatchRoom = () => {
           sessionRow = fallback.data;
         }
 
-        if (!sessionRow) throw new Error("Session not found");
+      if (!sessionRow) {
+        console.error("Session lookup failed:", { codeRaw, codeUpper, isUuid, sessionErr });
+        throw new Error("Session not found - check if Supabase schema is set up");
+      }
 
         setResolvedSessionId(sessionRow.id);
         setJoinCode(sessionRow.join_code);
